@@ -11,6 +11,7 @@
 
 # TLS 1.2（Windows PowerShell 5.1 默认 TLS 1.0，GitHub 要求 1.2）
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
 
 # 不用 Stop，避免 winget 非致命错误直接闪退
 $ErrorActionPreference = "Continue"
