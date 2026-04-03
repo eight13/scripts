@@ -8,11 +8,14 @@
     或者: .\setup.ps1
 #>
 
-$ErrorActionPreference = "Stop"
+# 不用 Stop，避免 winget 非致命错误直接闪退
+$ErrorActionPreference = "Continue"
 
 function Write-Step($msg) { Write-Host "`n=> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "   OK $msg" -ForegroundColor Green }
 function Write-Skip($msg) { Write-Host "   -- $msg (已存在，跳过)" -ForegroundColor Yellow }
+function Write-Warn($msg) { Write-Host "   !! $msg" -ForegroundColor Yellow }
+function Write-Fail($msg) { Write-Host "   X $msg" -ForegroundColor Red }
 
 function Refresh-Path {
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -20,13 +23,25 @@ function Refresh-Path {
     $env:Path = "$machinePath;$userPath"
 }
 
+function Install-WithWinget($packageId, $displayName) {
+    try {
+        winget install $packageId --accept-source-agreements --accept-package-agreements 2>&1 | ForEach-Object { Write-Host "   $_" }
+        Refresh-Path
+        return $true
+    } catch {
+        Write-Fail "$displayName 安装过程中出错: $_"
+        return $false
+    }
+}
+
 Write-Host "`n===== Claude Code Starter 部署 =====`n" -ForegroundColor Magenta
 
 # ── 0. 检查 winget ──
 $winget = Get-Command winget -ErrorAction SilentlyContinue
 if (-not $winget) {
-    Write-Host "   未找到 winget（Windows 包管理器）" -ForegroundColor Red
+    Write-Fail "未找到 winget（Windows 包管理器）"
     Write-Host "   请先从 Microsoft Store 安装 '应用安装程序'" -ForegroundColor Yellow
+    Read-Host "`n按回车退出"
     exit 1
 }
 
@@ -37,11 +52,11 @@ if ($node) {
     Write-Skip "Node.js $(node --version)"
 } else {
     Write-Host "   正在安装 Node.js..." -ForegroundColor Yellow
-    winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
-    if ($LASTEXITCODE -ne 0) { Write-Host "   安装失败" -ForegroundColor Red; exit 1 }
-    Refresh-Path
+    Install-WithWinget "OpenJS.NodeJS.LTS" "Node.js" | Out-Null
     if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-        Write-Host "   已安装，请重启终端后再次运行本脚本" -ForegroundColor Yellow; exit 1
+        Write-Warn "Node.js 已安装但需要重启终端，请重新打开 PowerShell 后再次运行本脚本"
+        Read-Host "`n按回车退出"
+        exit 1
     }
     Write-Ok "Node.js $(node --version)"
 }
@@ -53,11 +68,11 @@ if ($git) {
     Write-Skip "Git $(git --version)"
 } else {
     Write-Host "   正在安装 Git..." -ForegroundColor Yellow
-    winget install Git.Git --accept-source-agreements --accept-package-agreements
-    if ($LASTEXITCODE -ne 0) { Write-Host "   安装失败" -ForegroundColor Red; exit 1 }
-    Refresh-Path
+    Install-WithWinget "Git.Git" "Git" | Out-Null
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Write-Host "   已安装，请重启终端后再次运行本脚本" -ForegroundColor Yellow; exit 1
+        Write-Warn "Git 已安装但需要重启终端，请重新打开 PowerShell 后再次运行本脚本"
+        Read-Host "`n按回车退出"
+        exit 1
     }
     Write-Ok "Git $(git --version)"
 }
@@ -109,7 +124,7 @@ foreach ($f in $files) {
             Invoke-WebRequest -Uri "$baseUrl/$($f.Remote)" -OutFile $localPath -UseBasicParsing
             Write-Ok $f.Local
         } catch {
-            Write-Host "   下载失败: $($f.Remote)" -ForegroundColor Red
+            Write-Fail "下载失败: $($f.Remote)"
         }
     }
 }
@@ -142,3 +157,5 @@ Write-Host @"
     3. 用 /task <描述> 开始工作
 
 "@ -ForegroundColor White
+
+Read-Host "按回车退出"

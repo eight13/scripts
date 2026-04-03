@@ -9,12 +9,14 @@
     或者: .\setup-claude.ps1
 #>
 
-$ErrorActionPreference = "Stop"
+# 不用 Stop，避免 winget 非致命错误直接闪退
+$ErrorActionPreference = "Continue"
 
 function Write-Step($msg) { Write-Host "`n=> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "   OK $msg" -ForegroundColor Green }
 function Write-Skip($msg) { Write-Host "   -- $msg (已存在，跳过)" -ForegroundColor Yellow }
 function Write-Warn($msg) { Write-Host "   !! $msg" -ForegroundColor Yellow }
+function Write-Fail($msg) { Write-Host "   X $msg" -ForegroundColor Red }
 
 # 刷新当前会话的 PATH（winget 安装后新程序可能不在 PATH 中）
 function Refresh-Path {
@@ -23,13 +25,26 @@ function Refresh-Path {
     $env:Path = "$machinePath;$userPath"
 }
 
+# winget 安装封装：捕获所有异常，不让脚本闪退
+function Install-WithWinget($packageId, $displayName) {
+    try {
+        winget install $packageId --accept-source-agreements --accept-package-agreements 2>&1 | ForEach-Object { Write-Host "   $_" }
+        Refresh-Path
+        return $true
+    } catch {
+        Write-Fail "$displayName 安装过程中出错: $_"
+        return $false
+    }
+}
+
 Write-Host "`n===== Claude Code 一键部署 =====`n" -ForegroundColor Magenta
 
 # ── 0. 检查 winget ──
 $winget = Get-Command winget -ErrorAction SilentlyContinue
 if (-not $winget) {
-    Write-Host "   未找到 winget（Windows 包管理器），无法自动安装依赖" -ForegroundColor Red
+    Write-Fail "未找到 winget（Windows 包管理器）"
     Write-Host "   请先从 Microsoft Store 安装 '应用安装程序'" -ForegroundColor Yellow
+    Read-Host "`n按回车退出"
     exit 1
 }
 
@@ -40,15 +55,11 @@ if ($node) {
     Write-Skip "Node.js $(node --version)"
 } else {
     Write-Host "   未找到 Node.js，正在通过 winget 安装..." -ForegroundColor Yellow
-    winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "   Node.js 安装失败" -ForegroundColor Red
-        exit 1
-    }
-    Refresh-Path
+    Install-WithWinget "OpenJS.NodeJS.LTS" "Node.js" | Out-Null
     $node = Get-Command node -ErrorAction SilentlyContinue
     if (-not $node) {
-        Write-Host "   Node.js 已安装但需要重启终端才能使用，请关闭并重新打开 PowerShell 后再次运行本脚本" -ForegroundColor Yellow
+        Write-Warn "Node.js 已安装但需要重启终端，请重新打开 PowerShell 后再次运行本脚本"
+        Read-Host "`n按回车退出"
         exit 1
     }
     Write-Ok "Node.js $(node --version) 已安装"
@@ -61,15 +72,11 @@ if ($git) {
     Write-Skip "Git $(git --version)"
 } else {
     Write-Host "   未找到 Git，正在通过 winget 安装..." -ForegroundColor Yellow
-    winget install Git.Git --accept-source-agreements --accept-package-agreements
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "   Git 安装失败" -ForegroundColor Red
-        exit 1
-    }
-    Refresh-Path
+    Install-WithWinget "Git.Git" "Git" | Out-Null
     $git = Get-Command git -ErrorAction SilentlyContinue
     if (-not $git) {
-        Write-Host "   Git 已安装但需要重启终端才能使用，请关闭并重新打开 PowerShell 后再次运行本脚本" -ForegroundColor Yellow
+        Write-Warn "Git 已安装但需要重启终端，请重新打开 PowerShell 后再次运行本脚本"
+        Read-Host "`n按回车退出"
         exit 1
     }
     Write-Ok "Git $(git --version) 已安装"
@@ -125,7 +132,8 @@ if (Test-Path (Join-Path $claudeDir ".git")) {
         git clone git@github.com:eight13/claude-knowledge.git $claudeDir 2>&1
     }
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "   克隆失败，请检查网络" -ForegroundColor Red
+        Write-Fail "克隆失败，请检查网络"
+        Read-Host "`n按回车退出"
         exit 1
     }
     Write-Ok "已克隆到 $claudeDir"
@@ -153,3 +161,5 @@ Write-Host @"
     2. 登录后进入项目目录运行 /init-project 初始化项目配置
 
 "@ -ForegroundColor White
+
+Read-Host "按回车退出"
