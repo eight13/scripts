@@ -5,7 +5,7 @@ Claude Code 精简配置包 — 开箱即用的中文工作流。
 ## 一键部署
 
 ```powershell
-irm https://raw.githubusercontent.com/eight13/scripts/main/claude-starter/setup.ps1 | iex
+[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; irm https://raw.githubusercontent.com/eight13/scripts/main/claude-starter/setup.ps1 | iex
 ```
 
 自动完成：安装 Node.js/Git（如缺失） → 部署配置到 `~/.claude/` → 关闭遥测。

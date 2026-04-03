@@ -5,7 +5,7 @@
 ## 新电脑一键部署 Claude Code
 
 ```powershell
-irm https://raw.githubusercontent.com/eight13/scripts/main/setup-claude.ps1 | iex
+[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; irm https://raw.githubusercontent.com/eight13/scripts/main/setup-claude.ps1 | iex
 ```
 
 自动完成：安装 Node.js/Git（如缺失） + 拉取个人配置（commands/skills/knowledge） + 关闭遥测。
@@ -13,7 +13,7 @@ irm https://raw.githubusercontent.com/eight13/scripts/main/setup-claude.ps1 | ie
 ## 分享给朋友：Claude Code Starter
 
 ```powershell
-irm https://raw.githubusercontent.com/eight13/scripts/main/claude-starter/setup.ps1 | iex
+[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; irm https://raw.githubusercontent.com/eight13/scripts/main/claude-starter/setup.ps1 | iex
 ```
 
 精简版配置，包含 `/task`、`/init-project`、`/analyze`、`/review` 等核心功能。无需 GitHub 认证。详见 [claude-starter/README.md](claude-starter/README.md)。
