@@ -142,7 +142,27 @@ if ($telemetry -eq "1") {
     Write-Ok "已设置 DISABLE_TELEMETRY=1"
 }
 
-# ── 5. 完成 ──
+# ── 5. 代理配置 ──
+Write-Step "检查代理设置"
+$httpProxy = [Environment]::GetEnvironmentVariable("HTTP_PROXY", "User")
+if ($httpProxy) {
+    Write-Skip "HTTP_PROXY = $httpProxy"
+} else {
+    Write-Host "   Claude Code 需要代理才能访问 API（如果你在国内）" -ForegroundColor White
+    $proxyPort = Read-Host "   代理端口号（如 1099、7890，直接回车跳过）"
+    if ($proxyPort) {
+        $proxyUrl = "http://127.0.0.1:$proxyPort"
+        [Environment]::SetEnvironmentVariable("HTTP_PROXY", $proxyUrl, "User")
+        [Environment]::SetEnvironmentVariable("HTTPS_PROXY", $proxyUrl, "User")
+        Write-Ok "已设置 HTTP(S)_PROXY = $proxyUrl"
+    } else {
+        Write-Warn "跳过代理配置，如需设置可手动运行："
+        Write-Host '   [Environment]::SetEnvironmentVariable("HTTP_PROXY", "http://127.0.0.1:端口", "User")' -ForegroundColor Gray
+        Write-Host '   [Environment]::SetEnvironmentVariable("HTTPS_PROXY", "http://127.0.0.1:端口", "User")' -ForegroundColor Gray
+    }
+}
+
+# ── 6. 完成 ──
 Write-Host "`n===== 部署完成 =====" -ForegroundColor Green
 Write-Host @"
 
