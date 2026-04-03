@@ -40,14 +40,35 @@
 |------|------|----------|
 | `ns.ps1` | PowerShell | PowerShell 5.1+ / 管理员权限（部分功能） |
 | `forge-buddy.mjs` | JavaScript (ESM) | Node.js 18+ |
+| `setup-claude.ps1` | PowerShell | PowerShell 5.1+ / winget |
+| `claude-starter/setup.ps1` | PowerShell | PowerShell 5.1+ / winget |
 
-### 文件统计
+### 目录结构
 
-| 类型 | 文件数 | 说明 |
-|------|--------|------|
-| `.ps1` | 1 | 网络状态快照工具（~1900 行） |
-| `.mjs` | 1 | Claude Code companion 宠物锻造工具（~388 行） |
-| `.md` | 2 | README + ns 文档 |
+```
+scripts/
+├── ns.ps1                  # 网络状态快照工具（~1900 行）
+├── ns-doc.md               # ns.ps1 完整文档
+├── forge-buddy.mjs         # Claude Code companion 宠物锻造（~388 行）
+├── setup-claude.ps1        # 个人用：一键部署 Claude Code 全量配置
+├── claude-starter/         # 朋友用：精简版 Claude Code 配置包
+│   ├── setup.ps1          #   一键部署脚本（从 GitHub 下载，无需认证）
+│   ├── README.md          #   使用说明
+│   ├── base-style.md      #   通用交互风格
+│   ├── settings.json      #   权限配置
+│   ├── commands/
+│   │   ├── task.md        #   统一任务入口
+│   │   └── init-project.md#   项目初始化
+│   └── skills/
+│       ├── analyze/       #   深度代码分析
+│       ├── review/        #   代码审查
+│       └── create-skill/  #   创建新技能
+├── doc/
+│   └── README.md          # 文档总索引
+├── CLAUDE.md               # 项目配置（本文件）
+└── .claude/
+    └── project-lessons.md # 项目经验
+```
 
 ## 项目架构
 
@@ -64,6 +85,16 @@
 - **功能**: 暴力破解 salt 使 Claude Code companion 生成指定种类/稀有度/属性的宠物，自动 patch cli.js
 - **算法**: FNV-1a 哈希 + Mulberry32 PRNG（逆向自 Claude Code cli.js）
 - **结构**: 单文件 ESM 模块，无外部依赖
+
+### setup-claude.ps1 — 个人一键部署
+
+- **功能**: 新电脑一键安装 Node.js/Git + 克隆 `eight13/claude-knowledge` 私有仓库到 `~/.claude/` + 关遥测
+- **适用**: 自己的新电脑
+
+### claude-starter/ — 朋友版精简配置
+
+- **功能**: 从公开仓库下载核心 commands/skills 到 `~/.claude/`，无需 GitHub 认证
+- **适用**: 分享给朋友
 
 ## 编码约定
 
