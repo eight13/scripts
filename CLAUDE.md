@@ -1,0 +1,112 @@
+# CLAUDE.md — scripts
+
+## 交互风格
+
+- 使用中文交流，代码注释保持与原文件一致（中文）
+- 简洁直接，不需要冗余解释
+- 修改代码前先阅读相关文件，理解上下文
+
+## 分层权限模型
+
+| 操作 | 权限 |
+|------|------|
+| 读取/搜索文件 | 自动 |
+| 编辑现有文件 | 需确认 |
+| 创建新文件 | 需确认 |
+| 执行脚本 | 需确认 |
+| Git 操作 | 需确认 |
+
+## 修改审计
+
+- 修改前确认影响范围
+- 不随意重构未涉及的代码
+- PowerShell 脚本修改后建议用户手动测试（涉及系统网络配置，不可自动运行）
+
+## Token 节省策略
+
+- 大文件（如 ns.ps1 ~20K tokens）分段读取，不要一次性读取全文
+- 使用 Grep 定位目标代码段再精确读取
+- 对话中记住已读取的文件结构，避免重复读取
+
+## 项目信息
+
+**项目名**: scripts
+**类型**: 个人脚本工具集
+**平台**: Windows 11
+
+### 技术栈
+
+| 脚本 | 语言 | 运行环境 |
+|------|------|----------|
+| `ns.ps1` | PowerShell | PowerShell 5.1+ / 管理员权限（部分功能） |
+| `forge-buddy.mjs` | JavaScript (ESM) | Node.js 18+ |
+
+### 文件统计
+
+| 类型 | 文件数 | 说明 |
+|------|--------|------|
+| `.ps1` | 1 | 网络状态快照工具（~1900 行） |
+| `.mjs` | 1 | Claude Code companion 宠物锻造工具（~388 行） |
+| `.md` | 2 | README + ns 文档 |
+
+## 项目架构
+
+### ns.ps1 — 网络状态快照工具
+
+- **功能**: 监控 VPN/代理对 Windows 系统网络设置的修改，支持快照/对比/恢复/实时监控/一键修复
+- **监控项**: 25 项网络设置，分为代理(6)、DNS(5)、网络(6)、系统(5)、环境(3) 五大类
+- **结构**: 单文件脚本，使用 PowerShell CmdletBinding + ParameterSet 模式
+- **存储**: `%LOCALAPPDATA%\network-snapshots\`，JSON 格式快照
+- **详细文档**: `ns-doc.md`
+
+### forge-buddy.mjs — Companion 锻造工具
+
+- **功能**: 暴力破解 salt 使 Claude Code companion 生成指定种类/稀有度/属性的宠物，自动 patch cli.js
+- **算法**: FNV-1a 哈希 + Mulberry32 PRNG（逆向自 Claude Code cli.js）
+- **结构**: 单文件 ESM 模块，无外部依赖
+
+## 编码约定
+
+### PowerShell (ns.ps1)
+
+- 使用 `$script:` 作用域管理全局变量
+- 分类配置使用 `[ordered]@{}` 哈希表
+- 中文注释和输出
+- 参数使用 ParameterSetName 分组
+
+### JavaScript (forge-buddy.mjs)
+
+- ESM 模块（import/export）
+- 中文注释和 console 输出
+- 常量使用全大写命名
+- 无外部依赖，纯 Node.js 内置模块
+
+## 文档规范
+
+- **总索引**: `doc/README.md`
+- **模块级文档**: `<模块路径>/doc/README.md` + 具体文档
+- **跨模块文档**: `doc/` 根目录
+- **写作风格**: 面向不熟悉架构的读者，先现象后原理，用类比解释
+- **新建文档流程**: 建 doc 目录 -> 建索引 -> 更新总索引 -> 小修复合并不单开
+
+## 编译验证
+
+本项目为脚本工具集，无编译步骤。验证方式：
+
+- `ns.ps1`: `powershell -Command ".\ns.ps1 -Help"` （语法检查）
+- `forge-buddy.mjs`: `node forge-buddy.mjs --help` （语法检查）
+
+## 可用命令
+
+```bash
+# 网络快照工具
+powershell -File ns.ps1 -Help          # 查看帮助
+powershell -File ns.ps1                # 健康检查
+powershell -File ns.ps1 -Save          # 保存快照
+powershell -File ns.ps1 -Compare       # 对比快照
+
+# Companion 锻造
+node forge-buddy.mjs --help            # 查看帮助
+node forge-buddy.mjs --show            # 查看当前宠物
+node forge-buddy.mjs --species penguin --rarity legendary --dry-run  # 搜索（不修改）
+```
