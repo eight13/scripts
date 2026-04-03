@@ -160,8 +160,9 @@ Write-Host @"
   包含内容: commands(3) + skills(5) + knowledge(30+) + lessons + 用户画像
 
   下一步:
-    1. 在 VS Code 扩展商店搜索 Claude Code 并安装
-    2. 登录后进入项目目录运行 /init-project 初始化项目配置
+    1. 重启 VS Code（让 PATH 生效）
+    2. 在 VS Code 扩展商店搜索 Claude Code 并安装
+    3. 登录后进入项目目录运行 /init-project 初始化项目配置
 
 "@ -ForegroundColor White
 

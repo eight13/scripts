@@ -155,9 +155,10 @@ Write-Host @"
     - /create-skill  创建新技能
 
   下一步:
-    1. 在 VS Code 扩展商店搜索 Claude Code 并安装
-    2. 进入项目目录，运行 /init-project 初始化项目配置
-    3. 用 /task <描述> 开始工作
+    1. 重启 VS Code（让 PATH 生效）
+    2. 在 VS Code 扩展商店搜索 Claude Code 并安装
+    3. 进入项目目录，运行 /init-project 初始化项目配置
+    4. 用 /task <描述> 开始工作
 
 "@ -ForegroundColor White
 
