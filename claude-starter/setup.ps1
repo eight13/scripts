@@ -70,31 +70,33 @@ $git = Get-Command git -ErrorAction SilentlyContinue
 if ($git) {
     Write-Skip "Git $(git --version)"
 } else {
-    Write-Host "   正在安装 Git..." -ForegroundColor Yellow
-    Install-WithWinget "Git.Git" "Git" | Out-Null
+    # 直接下载 Git 安装包并静默安装（比 winget 可靠）
+    $gitInstaller = Join-Path $env:TEMP "Git-installer.exe"
+    Write-Host "   正在下载 Git..." -ForegroundColor Yellow
+    try {
+        Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/download/v2.53.0.windows.1/Git-2.53.0-64-bit.exe" -OutFile $gitInstaller -UseBasicParsing
+    } catch {
+        Write-Fail "下载失败: $_"
+        Read-Host "`n按回车退出"
+        exit 1
+    }
+    Write-Host "   正在安装 Git（静默模式）..." -ForegroundColor Yellow
+    Start-Process -FilePath $gitInstaller -ArgumentList "/VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /COMPONENTS=icons,ext\reg\shellhere,assoc,assoc_sh" -Wait
+    Remove-Item $gitInstaller -ErrorAction SilentlyContinue
+    # 刷新 PATH 并手动查找
     Refresh-Path
-    # winget 装完后 PATH 可能没生效，手动查找常见路径
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        $gitPaths = @(
-            "$env:ProgramFiles\Git\cmd",
-            "${env:ProgramFiles(x86)}\Git\cmd",
-            "$env:LOCALAPPDATA\Programs\Git\cmd"
-        )
-        foreach ($p in $gitPaths) {
-            if (Test-Path "$p\git.exe") {
-                $env:Path = "$p;$env:Path"
-                # 永久加入用户 PATH
-                $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-                if ($userPath -notlike "*$p*") {
-                    [Environment]::SetEnvironmentVariable("Path", "$p;$userPath", "User")
-                    Write-Ok "已将 $p 加入 PATH"
-                }
-                break
+        $gitCmd = "$env:ProgramFiles\Git\cmd"
+        if (Test-Path "$gitCmd\git.exe") {
+            $env:Path = "$gitCmd;$env:Path"
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            if ($userPath -notlike "*$gitCmd*") {
+                [Environment]::SetEnvironmentVariable("Path", "$gitCmd;$userPath", "User")
             }
         }
     }
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Write-Fail "Git 安装后仍找不到，请手动安装: https://git-scm.com/downloads/win"
+        Write-Fail "Git 安装失败，请手动安装: https://git-scm.com/downloads/win"
         Read-Host "`n按回车退出"
         exit 1
     }
