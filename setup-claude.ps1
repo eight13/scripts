@@ -28,7 +28,7 @@ function Refresh-Path {
 # winget 安装封装：捕获所有异常，不让脚本闪退
 function Install-WithWinget($packageId, $displayName) {
     try {
-        winget install $packageId --accept-source-agreements --accept-package-agreements 2>&1 | ForEach-Object { Write-Host "   $_" }
+        winget install $packageId --accept-source-agreements --accept-package-agreements
         Refresh-Path
         return $true
     } catch {

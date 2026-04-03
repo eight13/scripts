@@ -25,7 +25,7 @@ function Refresh-Path {
 
 function Install-WithWinget($packageId, $displayName) {
     try {
-        winget install $packageId --accept-source-agreements --accept-package-agreements 2>&1 | ForEach-Object { Write-Host "   $_" }
+        winget install $packageId --accept-source-agreements --accept-package-agreements
         Refresh-Path
         return $true
     } catch {
