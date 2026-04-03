@@ -76,9 +76,27 @@ if ($git) {
 } else {
     Write-Host "   未找到 Git，正在通过 winget 安装..." -ForegroundColor Yellow
     Install-WithWinget "Git.Git" "Git" | Out-Null
-    $git = Get-Command git -ErrorAction SilentlyContinue
-    if (-not $git) {
-        Write-Warn "Git 已安装但需要重启终端，请重新打开 PowerShell 后再次运行本脚本"
+    Refresh-Path
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $gitPaths = @(
+            "$env:ProgramFiles\Git\cmd",
+            "${env:ProgramFiles(x86)}\Git\cmd",
+            "$env:LOCALAPPDATA\Programs\Git\cmd"
+        )
+        foreach ($p in $gitPaths) {
+            if (Test-Path "$p\git.exe") {
+                $env:Path = "$p;$env:Path"
+                $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+                if ($userPath -notlike "*$p*") {
+                    [Environment]::SetEnvironmentVariable("Path", "$p;$userPath", "User")
+                    Write-Ok "已将 $p 加入 PATH"
+                }
+                break
+            }
+        }
+    }
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Write-Fail "Git 安装后仍找不到，请手动安装: https://git-scm.com/downloads/win"
         Read-Host "`n按回车退出"
         exit 1
     }
