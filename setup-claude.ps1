@@ -77,6 +77,7 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "   正在安装 Node.js..." -ForegroundColor Yellow
     winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+    if ($LASTEXITCODE -ne 0) { Write-Warn "winget 退出码: $LASTEXITCODE（可能需要管理员权限）" }
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $env:Path = "$machinePath;$userPath"
@@ -95,6 +96,7 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "   正在安装 Git（winget）..." -ForegroundColor Yellow
     winget install Git.Git --accept-source-agreements --accept-package-agreements
+    if ($LASTEXITCODE -ne 0) { Write-Warn "winget 退出码: $LASTEXITCODE" }
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $env:Path = "$machinePath;$userPath"
@@ -123,19 +125,15 @@ if (-not $gitUser -or -not $gitEmail) {
     Write-Host "   Git 需要用户名和邮箱才能提交/克隆（可以是假的，不影响使用）" -ForegroundColor White
     if (-not $gitUser) {
         $inputName = Read-Host "   用户名 (如 eight13)"
-        if ($inputName) {
-            git config --global user.name $inputName
-            Write-Ok "user.name = $inputName"
-        }
+        if ($inputName) { git config --global user.name $inputName; Write-Ok "user.name = $inputName" }
+        else { Write-Warn "已跳过，后续 git commit 可能会提示设置" }
     } else {
         Write-Skip "user.name = $gitUser"
     }
     if (-not $gitEmail) {
         $inputEmail = Read-Host "   邮箱 (如 you@example.com)"
-        if ($inputEmail) {
-            git config --global user.email $inputEmail
-            Write-Ok "user.email = $inputEmail"
-        }
+        if ($inputEmail) { git config --global user.email $inputEmail; Write-Ok "user.email = $inputEmail" }
+        else { Write-Warn "已跳过，后续 git commit 可能会提示设置" }
     } else {
         Write-Skip "user.email = $gitEmail"
     }
@@ -147,6 +145,8 @@ $vscode = Get-Command code -ErrorAction SilentlyContinue
 if ($vscode) {
     git config --global core.editor "`"$(($vscode).Source)`" --wait"
     Write-Ok "core.editor = VS Code"
+} else {
+    Write-Skip "VS Code 未找到，跳过 editor 设置"
 }
 
 # ── 3. 拉取个人配置 ──
@@ -156,9 +156,13 @@ $claudeDir = Join-Path $env:USERPROFILE ".claude"
 if (Test-Path (Join-Path $claudeDir ".git")) {
     Write-Skip "$claudeDir (已是 Git 仓库)"
     Push-Location $claudeDir
-    git pull --ff-only 2>&1 | Out-Null
+    $pullResult = git pull --ff-only 2>&1
     Pop-Location
-    Write-Ok "已拉取最新"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "拉取失败（可能有本地修改），请手动处理: cd $claudeDir && git status"
+    } else {
+        Write-Ok "已拉取最新"
+    }
 } else {
     if (Test-Path $claudeDir) {
         $backup = "${claudeDir}_backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
@@ -196,11 +200,13 @@ if ($httpProxy) {
 } else {
     Write-Host "   Claude Code 需要代理才能访问 API（如果你在国内）" -ForegroundColor White
     $proxyPort = Read-Host "   代理端口号（如 1099、7890，直接回车跳过）"
-    if ($proxyPort) {
+    if ($proxyPort -match '^\d{1,5}$' -and [int]$proxyPort -ge 1 -and [int]$proxyPort -le 65535) {
         $proxyUrl = "http://127.0.0.1:$proxyPort"
         [Environment]::SetEnvironmentVariable("HTTP_PROXY", $proxyUrl, "User")
         [Environment]::SetEnvironmentVariable("HTTPS_PROXY", $proxyUrl, "User")
         Write-Ok "已设置 HTTP(S)_PROXY = $proxyUrl"
+    } elseif ($proxyPort) {
+        Write-Fail "端口号无效（需要 1-65535 的数字），跳过代理配置"
     } else {
         Write-Warn "跳过代理配置，如需设置可手动运行："
         Write-Host '   [Environment]::SetEnvironmentVariable("HTTP_PROXY", "http://127.0.0.1:端口", "User")' -ForegroundColor Gray
@@ -209,11 +215,14 @@ if ($httpProxy) {
 }
 
 # ── 6. 完成 ──
+# 恢复证书验证
+[Net.ServicePointManager]::ServerCertificateValidationCallback = $null
+
 Write-Host "`n===== 部署完成 =====" -ForegroundColor Green
 Write-Host @"
 
   配置位置: $claudeDir
-  包含内容: commands(3) + skills(5) + knowledge(30+) + lessons + 用户画像
+  包含内容: commands(3) + skills(5) + knowledge(30+) + lessons + 用户画像 + statusline
 
   下一步:
     1. 重启 VS Code（让 PATH 生效）

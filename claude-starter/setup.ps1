@@ -24,7 +24,6 @@ function Write-Fail($msg) { Write-Host "   X $msg" -ForegroundColor Red }
 
 # 从注册表 / 常见路径查找 Git 并加入 PATH
 function Find-GitAndAddToPath {
-    # 1. 注册表（最可靠）
     $regPaths = @(
         "HKLM:\SOFTWARE\GitForWindows",
         "HKLM:\SOFTWARE\WOW6432Node\GitForWindows",
@@ -42,7 +41,6 @@ function Find-GitAndAddToPath {
             return $true
         }
     }
-    # 2. 常见路径兜底
     $commonPaths = @(
         "$env:ProgramFiles\Git\cmd",
         "${env:ProgramFiles(x86)}\Git\cmd",
@@ -79,7 +77,7 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "   正在安装 Node.js..." -ForegroundColor Yellow
     winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
-    # 刷新 PATH
+    if ($LASTEXITCODE -ne 0) { Write-Warn "winget 退出码: $LASTEXITCODE（可能需要管理员权限）" }
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $env:Path = "$machinePath;$userPath"
@@ -98,11 +96,10 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "   正在安装 Git（winget）..." -ForegroundColor Yellow
     winget install Git.Git --accept-source-agreements --accept-package-agreements
-    # 刷新 PATH
+    if ($LASTEXITCODE -ne 0) { Write-Warn "winget 退出码: $LASTEXITCODE" }
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $env:Path = "$machinePath;$userPath"
-    # 如果还找不到，从注册表/常见路径查找并加入 PATH
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-Host "   PATH 未自动生效，正在查找 Git 安装路径..." -ForegroundColor Yellow
         if (-not (Find-GitAndAddToPath)) {
@@ -128,14 +125,16 @@ if (-not $gitUser -or -not $gitEmail) {
     if (-not $gitUser) {
         $inputName = Read-Host "   用户名"
         if ($inputName) { git config --global user.name $inputName; Write-Ok "user.name = $inputName" }
+        else { Write-Warn "已跳过，后续 git commit 可能会提示设置" }
     }
     if (-not $gitEmail) {
         $inputEmail = Read-Host "   邮箱"
         if ($inputEmail) { git config --global user.email $inputEmail; Write-Ok "user.email = $inputEmail" }
+        else { Write-Warn "已跳过，后续 git commit 可能会提示设置" }
     }
 }
 
-# Git 通用配置（同步非敏感设置）
+# Git 通用配置
 Write-Step "配置 Git 通用设置"
 $vscode = Get-Command code -ErrorAction SilentlyContinue
 if ($vscode) {
@@ -149,10 +148,8 @@ if ($vscode) {
 Write-Step "部署 Claude Code 配置"
 $claudeDir = Join-Path $env:USERPROFILE ".claude"
 
-# 确保目录存在
 if (-not (Test-Path $claudeDir)) { New-Item -ItemType Directory -Path $claudeDir | Out-Null }
 
-# 下载配置文件
 $baseUrl = "https://raw.githubusercontent.com/eight13/scripts/main/claude-starter"
 $files = @(
     @{ Remote = "base-style.md";                   Local = "base-style.md" }
@@ -164,6 +161,7 @@ $files = @(
     @{ Remote = "skills/create-skill/SKILL.md";    Local = "skills/create-skill/SKILL.md" }
 )
 
+$downloadFailed = 0
 foreach ($f in $files) {
     $localPath = Join-Path $claudeDir $f.Local
     $localDir = Split-Path $localPath -Parent
@@ -177,8 +175,15 @@ foreach ($f in $files) {
             Write-Ok $f.Local
         } catch {
             Write-Fail "下载失败: $($f.Remote)"
+            $downloadFailed++
         }
     }
+}
+
+if ($downloadFailed -eq $files.Count) {
+    Write-Fail "所有配置文件下载失败，请检查网络/代理设置"
+} elseif ($downloadFailed -gt 0) {
+    Write-Warn "$downloadFailed 个文件下载失败，部分配置可能不完整"
 }
 
 # ── 4. 关闭遥测 ──
@@ -199,11 +204,13 @@ if ($httpProxy) {
 } else {
     Write-Host "   Claude Code 需要代理才能访问 API（如果你在国内）" -ForegroundColor White
     $proxyPort = Read-Host "   代理端口号（如 1099、7890，直接回车跳过）"
-    if ($proxyPort) {
+    if ($proxyPort -match '^\d{1,5}$' -and [int]$proxyPort -ge 1 -and [int]$proxyPort -le 65535) {
         $proxyUrl = "http://127.0.0.1:$proxyPort"
         [Environment]::SetEnvironmentVariable("HTTP_PROXY", $proxyUrl, "User")
         [Environment]::SetEnvironmentVariable("HTTPS_PROXY", $proxyUrl, "User")
         Write-Ok "已设置 HTTP(S)_PROXY = $proxyUrl"
+    } elseif ($proxyPort) {
+        Write-Fail "端口号无效（需要 1-65535 的数字），跳过代理配置"
     } else {
         Write-Warn "跳过代理配置，如需设置可手动运行："
         Write-Host '   [Environment]::SetEnvironmentVariable("HTTP_PROXY", "http://127.0.0.1:端口", "User")' -ForegroundColor Gray
@@ -212,6 +219,9 @@ if ($httpProxy) {
 }
 
 # ── 6. 完成 ──
+# 恢复证书验证
+[Net.ServicePointManager]::ServerCertificateValidationCallback = $null
+
 Write-Host "`n===== 部署完成 =====" -ForegroundColor Green
 Write-Host @"
 
