@@ -22,23 +22,41 @@ function Write-Skip($msg) { Write-Host "   -- $msg (已存在，跳过)" -Foregr
 function Write-Warn($msg) { Write-Host "   !! $msg" -ForegroundColor Yellow }
 function Write-Fail($msg) { Write-Host "   X $msg" -ForegroundColor Red }
 
-# 刷新当前会话的 PATH（winget 安装后新程序可能不在 PATH 中）
-function Refresh-Path {
-    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    $env:Path = "$machinePath;$userPath"
-}
-
-# winget 安装封装：捕获所有异常，不让脚本闪退
-function Install-WithWinget($packageId, $displayName) {
-    try {
-        winget install $packageId --accept-source-agreements --accept-package-agreements
-        Refresh-Path
-        return $true
-    } catch {
-        Write-Fail "$displayName 安装过程中出错: $_"
-        return $false
+# 从注册表 / 常见路径查找 Git 并加入 PATH
+function Find-GitAndAddToPath {
+    $regPaths = @(
+        "HKLM:\SOFTWARE\GitForWindows",
+        "HKLM:\SOFTWARE\WOW6432Node\GitForWindows",
+        "HKCU:\SOFTWARE\GitForWindows"
+    )
+    foreach ($rp in $regPaths) {
+        $installPath = (Get-ItemProperty $rp -ErrorAction SilentlyContinue).InstallPath
+        if ($installPath -and (Test-Path "$installPath\cmd\git.exe")) {
+            $gitCmd = "$installPath\cmd"
+            $env:Path = "$gitCmd;$env:Path"
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            if ($userPath -notlike "*$gitCmd*") {
+                [Environment]::SetEnvironmentVariable("Path", "$gitCmd;$userPath", "User")
+            }
+            return $true
+        }
     }
+    $commonPaths = @(
+        "$env:ProgramFiles\Git\cmd",
+        "${env:ProgramFiles(x86)}\Git\cmd",
+        "$env:LOCALAPPDATA\Programs\Git\cmd"
+    )
+    foreach ($p in $commonPaths) {
+        if (Test-Path "$p\git.exe") {
+            $env:Path = "$p;$env:Path"
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            if ($userPath -notlike "*$p*") {
+                [Environment]::SetEnvironmentVariable("Path", "$p;$userPath", "User")
+            }
+            return $true
+        }
+    }
+    return $false
 }
 
 Write-Host "`n===== Claude Code 一键部署 =====`n" -ForegroundColor Magenta
@@ -54,14 +72,15 @@ if (-not $winget) {
 
 # ── 1. Node.js ──
 Write-Step "检查 Node.js"
-$node = Get-Command node -ErrorAction SilentlyContinue
-if ($node) {
+if (Get-Command node -ErrorAction SilentlyContinue) {
     Write-Skip "Node.js $(node --version)"
 } else {
-    Write-Host "   未找到 Node.js，正在通过 winget 安装..." -ForegroundColor Yellow
-    Install-WithWinget "OpenJS.NodeJS.LTS" "Node.js" | Out-Null
-    $node = Get-Command node -ErrorAction SilentlyContinue
-    if (-not $node) {
+    Write-Host "   正在安装 Node.js..." -ForegroundColor Yellow
+    winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = "$machinePath;$userPath"
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
         Write-Warn "Node.js 已安装但需要重启终端，请重新打开 PowerShell 后再次运行本脚本"
         Read-Host "`n按回车退出"
         exit 1
@@ -71,35 +90,24 @@ if ($node) {
 
 # ── 2. Git ──
 Write-Step "检查 Git"
-$git = Get-Command git -ErrorAction SilentlyContinue
-if ($git) {
+if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Skip "Git $(git --version)"
 } else {
-    $gitInstaller = Join-Path $env:TEMP "Git-installer.exe"
-    Write-Host "   未找到 Git，正在下载..." -ForegroundColor Yellow
-    try {
-        Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/download/v2.53.0.windows.1/Git-2.53.0-64-bit.exe" -OutFile $gitInstaller -UseBasicParsing
-    } catch {
-        Write-Fail "下载失败: $_"
-        Read-Host "`n按回车退出"
-        exit 1
-    }
-    Write-Host "   正在安装 Git（静默模式）..." -ForegroundColor Yellow
-    Start-Process -FilePath $gitInstaller -ArgumentList "/VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /COMPONENTS=icons,ext\reg\shellhere,assoc,assoc_sh" -Wait
-    Remove-Item $gitInstaller -ErrorAction SilentlyContinue
-    Refresh-Path
+    Write-Host "   正在安装 Git（winget）..." -ForegroundColor Yellow
+    winget install Git.Git --accept-source-agreements --accept-package-agreements
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = "$machinePath;$userPath"
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        $gitCmd = "$env:ProgramFiles\Git\cmd"
-        if (Test-Path "$gitCmd\git.exe") {
-            $env:Path = "$gitCmd;$env:Path"
-            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-            if ($userPath -notlike "*$gitCmd*") {
-                [Environment]::SetEnvironmentVariable("Path", "$gitCmd;$userPath", "User")
-            }
+        Write-Host "   PATH 未自动生效，正在查找 Git 安装路径..." -ForegroundColor Yellow
+        if (-not (Find-GitAndAddToPath)) {
+            Write-Fail "Git 安装后仍找不到，请手动安装: https://git-scm.com/downloads/win"
+            Read-Host "`n按回车退出"
+            exit 1
         }
     }
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Write-Fail "Git 安装失败，请手动安装: https://git-scm.com/downloads/win"
+        Write-Fail "Git 安装后仍找不到，请手动安装: https://git-scm.com/downloads/win"
         Read-Host "`n按回车退出"
         exit 1
     }
@@ -133,6 +141,14 @@ if (-not $gitUser -or -not $gitEmail) {
     }
 }
 
+# Git 通用配置
+Write-Step "配置 Git 通用设置"
+$vscode = Get-Command code -ErrorAction SilentlyContinue
+if ($vscode) {
+    git config --global core.editor "`"$(($vscode).Source)`" --wait"
+    Write-Ok "core.editor = VS Code"
+}
+
 # ── 3. 拉取个人配置 ──
 Write-Step "部署个人配置"
 $claudeDir = Join-Path $env:USERPROFILE ".claude"
@@ -149,7 +165,6 @@ if (Test-Path (Join-Path $claudeDir ".git")) {
         Rename-Item $claudeDir $backup
         Write-Warn "已备份原有目录到: $backup"
     }
-    # 优先 HTTPS（新机器通常没有 SSH 密钥）
     git clone https://github.com/eight13/claude-knowledge.git $claudeDir 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Warn "HTTPS 克隆失败，尝试 SSH..."

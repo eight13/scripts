@@ -22,21 +22,43 @@ function Write-Skip($msg) { Write-Host "   -- $msg (已存在，跳过)" -Foregr
 function Write-Warn($msg) { Write-Host "   !! $msg" -ForegroundColor Yellow }
 function Write-Fail($msg) { Write-Host "   X $msg" -ForegroundColor Red }
 
-function Refresh-Path {
-    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    $env:Path = "$machinePath;$userPath"
-}
-
-function Install-WithWinget($packageId, $displayName) {
-    try {
-        winget install $packageId --accept-source-agreements --accept-package-agreements
-        Refresh-Path
-        return $true
-    } catch {
-        Write-Fail "$displayName 安装过程中出错: $_"
-        return $false
+# 从注册表 / 常见路径查找 Git 并加入 PATH
+function Find-GitAndAddToPath {
+    # 1. 注册表（最可靠）
+    $regPaths = @(
+        "HKLM:\SOFTWARE\GitForWindows",
+        "HKLM:\SOFTWARE\WOW6432Node\GitForWindows",
+        "HKCU:\SOFTWARE\GitForWindows"
+    )
+    foreach ($rp in $regPaths) {
+        $installPath = (Get-ItemProperty $rp -ErrorAction SilentlyContinue).InstallPath
+        if ($installPath -and (Test-Path "$installPath\cmd\git.exe")) {
+            $gitCmd = "$installPath\cmd"
+            $env:Path = "$gitCmd;$env:Path"
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            if ($userPath -notlike "*$gitCmd*") {
+                [Environment]::SetEnvironmentVariable("Path", "$gitCmd;$userPath", "User")
+            }
+            return $true
+        }
     }
+    # 2. 常见路径兜底
+    $commonPaths = @(
+        "$env:ProgramFiles\Git\cmd",
+        "${env:ProgramFiles(x86)}\Git\cmd",
+        "$env:LOCALAPPDATA\Programs\Git\cmd"
+    )
+    foreach ($p in $commonPaths) {
+        if (Test-Path "$p\git.exe") {
+            $env:Path = "$p;$env:Path"
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            if ($userPath -notlike "*$p*") {
+                [Environment]::SetEnvironmentVariable("Path", "$p;$userPath", "User")
+            }
+            return $true
+        }
+    }
+    return $false
 }
 
 Write-Host "`n===== Claude Code Starter 部署 =====`n" -ForegroundColor Magenta
@@ -52,12 +74,15 @@ if (-not $winget) {
 
 # ── 1. Node.js ──
 Write-Step "检查 Node.js"
-$node = Get-Command node -ErrorAction SilentlyContinue
-if ($node) {
+if (Get-Command node -ErrorAction SilentlyContinue) {
     Write-Skip "Node.js $(node --version)"
 } else {
     Write-Host "   正在安装 Node.js..." -ForegroundColor Yellow
-    Install-WithWinget "OpenJS.NodeJS.LTS" "Node.js" | Out-Null
+    winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+    # 刷新 PATH
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = "$machinePath;$userPath"
     if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
         Write-Warn "Node.js 已安装但需要重启终端，请重新打开 PowerShell 后再次运行本脚本"
         Read-Host "`n按回车退出"
@@ -68,37 +93,26 @@ if ($node) {
 
 # ── 2. Git ──
 Write-Step "检查 Git"
-$git = Get-Command git -ErrorAction SilentlyContinue
-if ($git) {
+if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Skip "Git $(git --version)"
 } else {
-    # 直接下载 Git 安装包并静默安装（比 winget 可靠）
-    $gitInstaller = Join-Path $env:TEMP "Git-installer.exe"
-    Write-Host "   正在下载 Git..." -ForegroundColor Yellow
-    try {
-        Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/download/v2.53.0.windows.1/Git-2.53.0-64-bit.exe" -OutFile $gitInstaller -UseBasicParsing
-    } catch {
-        Write-Fail "下载失败: $_"
-        Read-Host "`n按回车退出"
-        exit 1
-    }
-    Write-Host "   正在安装 Git（静默模式）..." -ForegroundColor Yellow
-    Start-Process -FilePath $gitInstaller -ArgumentList "/VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /COMPONENTS=icons,ext\reg\shellhere,assoc,assoc_sh" -Wait
-    Remove-Item $gitInstaller -ErrorAction SilentlyContinue
-    # 刷新 PATH 并手动查找
-    Refresh-Path
+    Write-Host "   正在安装 Git（winget）..." -ForegroundColor Yellow
+    winget install Git.Git --accept-source-agreements --accept-package-agreements
+    # 刷新 PATH
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = "$machinePath;$userPath"
+    # 如果还找不到，从注册表/常见路径查找并加入 PATH
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        $gitCmd = "$env:ProgramFiles\Git\cmd"
-        if (Test-Path "$gitCmd\git.exe") {
-            $env:Path = "$gitCmd;$env:Path"
-            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-            if ($userPath -notlike "*$gitCmd*") {
-                [Environment]::SetEnvironmentVariable("Path", "$gitCmd;$userPath", "User")
-            }
+        Write-Host "   PATH 未自动生效，正在查找 Git 安装路径..." -ForegroundColor Yellow
+        if (-not (Find-GitAndAddToPath)) {
+            Write-Fail "Git 安装后仍找不到，请手动安装: https://git-scm.com/downloads/win"
+            Read-Host "`n按回车退出"
+            exit 1
         }
     }
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Write-Fail "Git 安装失败，请手动安装: https://git-scm.com/downloads/win"
+        Write-Fail "Git 安装后仍找不到，请手动安装: https://git-scm.com/downloads/win"
         Read-Host "`n按回车退出"
         exit 1
     }
@@ -119,6 +133,16 @@ if (-not $gitUser -or -not $gitEmail) {
         $inputEmail = Read-Host "   邮箱"
         if ($inputEmail) { git config --global user.email $inputEmail; Write-Ok "user.email = $inputEmail" }
     }
+}
+
+# Git 通用配置（同步非敏感设置）
+Write-Step "配置 Git 通用设置"
+$vscode = Get-Command code -ErrorAction SilentlyContinue
+if ($vscode) {
+    git config --global core.editor "`"$(($vscode).Source)`" --wait"
+    Write-Ok "core.editor = VS Code"
+} else {
+    Write-Skip "VS Code 未找到，跳过 editor 设置"
 }
 
 # ── 3. 部署配置 ──
