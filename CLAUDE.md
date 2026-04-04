@@ -49,7 +49,7 @@
 scripts/
 ├── ns.ps1                  # 网络状态快照工具（~1900 行）
 ├── ns-doc.md               # ns.ps1 完整文档
-├── forge-buddy.mjs         # Claude Code companion 宠物锻造（~388 行）
+├── forge-buddy.mjs         # Claude Code companion 宠物锻造（~510 行）
 ├── setup-claude.ps1        # 个人用：一键部署 Claude Code 全量配置
 ├── claude-starter/         # 朋友用：精简版 Claude Code 配置包
 │   ├── setup.ps1          #   一键部署脚本（从 GitHub 下载，无需认证）
@@ -82,7 +82,9 @@ scripts/
 
 ### forge-buddy.mjs — Companion 锻造工具
 
-- **功能**: 暴力破解 salt 使 Claude Code companion 生成指定种类/稀有度/属性的宠物，自动 patch cli.js
+- **功能**: 暴力搜索 seed 使 Claude Code companion 生成指定种类/稀有度/属性的宠物
+- **方案**: `companionSeed` 独立字段 + cli.js 最小 patch（不碰认证字段）
+- **附加**: 自动注入 companion 中文 personality 指令
 - **算法**: FNV-1a 哈希 + Mulberry32 PRNG（逆向自 Claude Code cli.js）
 - **结构**: 单文件 ESM 模块，无外部依赖
 
@@ -139,5 +141,8 @@ powershell -File ns.ps1 -Compare       # 对比快照
 # Companion 锻造
 node forge-buddy.mjs --help            # 查看帮助
 node forge-buddy.mjs --show            # 查看当前宠物
-node forge-buddy.mjs --species penguin --rarity legendary --dry-run  # 搜索（不修改）
+node forge-buddy.mjs --patch           # CLI 更新后重新 patch
+node forge-buddy.mjs --restore         # 恢复原始状态
+node forge-buddy.mjs --species penguin --rarity legendary --peak DEBUGGING --dump PATIENCE  # 完整搜索
+node forge-buddy.mjs --species cat --rarity epic --dry-run  # 搜索（不修改）
 ```

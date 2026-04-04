@@ -9,6 +9,8 @@
 
 ## forge-buddy.mjs
 
-- 算法逆向自 Claude Code cli.js，如果 Claude Code 更新了 companion 生成算法，此工具需要同步更新
-- salt 长度固定为 15 字符，搜索空间受限于固定前缀 + 3 字符变体
-- `ORIGINAL_SALT` 常量随 Claude Code 版本变化，需要及时更新
+- 算法逆向自 Claude Code cli.js（FNV-1a + Mulberry32），如果 Claude Code 更新了 companion 生成算法需同步更新
+- 使用 `companionSeed` 独立字段 + cli.js 最小 patch 方案，不碰 `oauthAccount` 认证字段
+- CLI 更新会覆盖 cli.js patch，需重新运行 `--patch`；`companionSeed` 和 personality 中文指令存在 `.claude.json` 中不受影响
+- companion 视觉属性（species/rarity/stats）不存储，每次从 userId 重新生成；只有 name/personality/hatchedAt 持久化
+- companion 对话走服务端 `buddy_react` API，personality 字段（200 字符）是唯一可控输入
