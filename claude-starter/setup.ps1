@@ -94,21 +94,55 @@ Write-Step "检查 Git"
 if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Skip "Git $(git --version)"
 } else {
+    $gitInstalled = $false
+
+    # 优先 winget
     Write-Host "   正在安装 Git（winget）..." -ForegroundColor Yellow
     winget install Git.Git --accept-source-agreements --accept-package-agreements
-    if ($LASTEXITCODE -ne 0) { Write-Warn "winget 退出码: $LASTEXITCODE" }
+    $wingetExit = $LASTEXITCODE
+    if ($wingetExit -ne 0) {
+        Write-Warn "winget 失败（退出码 $wingetExit，VPN 环境常见），改为直接下载安装包..."
+    }
+
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $env:Path = "$machinePath;$userPath"
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Write-Host "   PATH 未自动生效，正在查找 Git 安装路径..." -ForegroundColor Yellow
-        if (-not (Find-GitAndAddToPath)) {
-            Write-Fail "Git 安装后仍找不到，请手动安装: https://git-scm.com/downloads/win"
-            Read-Host "`n按回车退出"
-            exit 1
+    if ((Get-Command git -ErrorAction SilentlyContinue) -or (Find-GitAndAddToPath)) {
+        $gitInstalled = $true
+    }
+
+    # Fallback: 通过 GitHub API 查最新 release，直接下载安装包静默安装
+    # （winget 内部用 WinINet，无视 ServerCertificateValidationCallback；
+    #   Invoke-RestMethod/WebRequest 走 .NET 栈，能吃到前面设的 SSL 跳过）
+    if (-not $gitInstalled) {
+        try {
+            Write-Host "   查询 git-for-windows 最新版本..." -ForegroundColor Yellow
+            $api = "https://api.github.com/repos/git-for-windows/git/releases/latest"
+            $release = Invoke-RestMethod -Uri $api -UseBasicParsing -Headers @{ "User-Agent" = "claude-starter" }
+            $asset = $release.assets | Where-Object { $_.name -match '^Git-.*-64-bit\.exe$' } | Select-Object -First 1
+            if (-not $asset) { throw "未找到 64-bit 安装包资源" }
+
+            $installer = Join-Path $env:TEMP $asset.name
+            Write-Host "   下载 $($asset.name) ..." -ForegroundColor Yellow
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $installer -UseBasicParsing
+
+            Write-Host "   静默安装中（约 30 秒）..." -ForegroundColor Yellow
+            $proc = Start-Process -FilePath $installer -ArgumentList "/VERYSILENT","/NORESTART","/SUPPRESSMSGBOXES","/NOCANCEL" -Wait -PassThru
+            if ($proc.ExitCode -ne 0) { Write-Warn "安装程序退出码: $($proc.ExitCode)" }
+            Remove-Item $installer -ErrorAction SilentlyContinue
+
+            $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            $env:Path = "$machinePath;$userPath"
+            if ((Get-Command git -ErrorAction SilentlyContinue) -or (Find-GitAndAddToPath)) {
+                $gitInstalled = $true
+            }
+        } catch {
+            Write-Fail "直接下载失败: $($_.Exception.Message)"
         }
     }
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+
+    if (-not $gitInstalled) {
         Write-Fail "Git 安装后仍找不到，请手动安装: https://git-scm.com/downloads/win"
         Read-Host "`n按回车退出"
         exit 1
