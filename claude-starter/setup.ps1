@@ -188,6 +188,7 @@ $baseUrl = "https://raw.githubusercontent.com/eight13/scripts/main/claude-starte
 $files = @(
     @{ Remote = "base-style.md";                   Local = "base-style.md" }
     @{ Remote = "settings.json";                   Local = "settings.json" }
+    @{ Remote = "statusline-command.sh";           Local = "statusline-command.sh" }
     @{ Remote = "commands/task.md";                Local = "commands/task.md" }
     @{ Remote = "commands/init-project.md";        Local = "commands/init-project.md" }
     @{ Remote = "skills/analyze/SKILL.md";         Local = "skills/analyze/SKILL.md" }
