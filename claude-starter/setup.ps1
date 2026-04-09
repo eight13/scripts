@@ -75,14 +75,50 @@ Write-Step "检查 Node.js"
 if (Get-Command node -ErrorAction SilentlyContinue) {
     Write-Skip "Node.js $(node --version)"
 } else {
-    Write-Host "   正在安装 Node.js..." -ForegroundColor Yellow
+    $nodeInstalled = $false
+
+    # 优先 winget
+    Write-Host "   正在安装 Node.js（winget）..." -ForegroundColor Yellow
     winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
-    if ($LASTEXITCODE -ne 0) { Write-Warn "winget 退出码: $LASTEXITCODE（可能需要管理员权限）" }
+    $wingetExit = $LASTEXITCODE
+    if ($wingetExit -ne 0) { Write-Warn "winget 失败（退出码 $wingetExit），改为从清华镜像下载..." }
+
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $env:Path = "$machinePath;$userPath"
-    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-        Write-Warn "Node.js 已安装但需要重启终端，请重新打开 PowerShell 后再次运行本脚本"
+    if (Get-Command node -ErrorAction SilentlyContinue) { $nodeInstalled = $true }
+
+    # Fallback: 从清华镜像下载 Node.js LTS
+    if (-not $nodeInstalled) {
+        try {
+            $mirrorBase = "https://mirrors.tuna.tsinghua.edu.cn/nodejs-release"
+            Write-Host "   查询 Node.js 最新 LTS 版本..." -ForegroundColor Yellow
+            $index = Invoke-RestMethod -Uri "$mirrorBase/index.json" -UseBasicParsing
+            $lts = $index | Where-Object { $_.lts -ne $false } | Select-Object -First 1
+            if (-not $lts) { throw "未找到 LTS 版本" }
+            $ver = $lts.version  # 格式: v22.16.0
+            $msi = "node-$ver-x64.msi"
+
+            $installer = Join-Path $env:TEMP $msi
+            Write-Host "   下载 $msi（清华镜像，约 30MB）..." -ForegroundColor Yellow
+            Invoke-WebRequest -Uri "$mirrorBase/$ver/$msi" -OutFile $installer -UseBasicParsing
+
+            Write-Host "   静默安装中..." -ForegroundColor Yellow
+            $proc = Start-Process msiexec -ArgumentList "/i","`"$installer`"","/qn","/norestart" -Wait -PassThru
+            if ($proc.ExitCode -ne 0) { Write-Warn "安装程序退出码: $($proc.ExitCode)" }
+            Remove-Item $installer -ErrorAction SilentlyContinue
+
+            $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            $env:Path = "$machinePath;$userPath"
+            if (Get-Command node -ErrorAction SilentlyContinue) { $nodeInstalled = $true }
+        } catch {
+            Write-Fail "清华镜像下载失败: $($_.Exception.Message)"
+        }
+    }
+
+    if (-not $nodeInstalled) {
+        Write-Fail "Node.js 自动安装失败，请手动下载安装: https://nodejs.org/zh-cn/download"
         Read-Host "`n按回车退出"
         exit 1
     }
@@ -111,20 +147,18 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
         $gitInstalled = $true
     }
 
-    # Fallback: 通过 GitHub API 查最新 release，直接下载安装包静默安装
-    # （winget 内部用 WinINet，无视 ServerCertificateValidationCallback；
-    #   Invoke-RestMethod/WebRequest 走 .NET 栈，能吃到前面设的 SSL 跳过）
+    # Fallback: 从清华镜像下载（国内直连，不需要 VPN）
     if (-not $gitInstalled) {
         try {
-            Write-Host "   查询 git-for-windows 最新版本..." -ForegroundColor Yellow
-            $api = "https://api.github.com/repos/git-for-windows/git/releases/latest"
-            $release = Invoke-RestMethod -Uri $api -UseBasicParsing -Headers @{ "User-Agent" = "claude-starter" }
-            $asset = $release.assets | Where-Object { $_.name -match '^Git-.*-64-bit\.exe$' } | Select-Object -First 1
-            if (-not $asset) { throw "未找到 64-bit 安装包资源" }
+            $mirrorBase = "https://mirrors.tuna.tsinghua.edu.cn/github-release/git-for-windows/git/LatestRelease"
+            Write-Host "   从清华镜像查找最新 Git 安装包..." -ForegroundColor Yellow
+            $page = Invoke-WebRequest -Uri "$mirrorBase/" -UseBasicParsing
+            $exeName = ($page.Links | Where-Object { $_.href -match '^Git-.*-64-bit\.exe$' } | Select-Object -First 1).href
+            if (-not $exeName) { throw "未在清华镜像找到 64-bit 安装包" }
 
-            $installer = Join-Path $env:TEMP $asset.name
-            Write-Host "   下载 $($asset.name) ..." -ForegroundColor Yellow
-            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $installer -UseBasicParsing
+            $installer = Join-Path $env:TEMP $exeName
+            Write-Host "   下载 $exeName（清华镜像，约 60MB）..." -ForegroundColor Yellow
+            Invoke-WebRequest -Uri "$mirrorBase/$exeName" -OutFile $installer -UseBasicParsing
 
             Write-Host "   静默安装中（约 30 秒）..." -ForegroundColor Yellow
             $proc = Start-Process -FilePath $installer -ArgumentList "/VERYSILENT","/NORESTART","/SUPPRESSMSGBOXES","/NOCANCEL" -Wait -PassThru
@@ -138,12 +172,12 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
                 $gitInstalled = $true
             }
         } catch {
-            Write-Fail "直接下载失败: $($_.Exception.Message)"
+            Write-Fail "清华镜像下载失败: $($_.Exception.Message)"
         }
     }
 
     if (-not $gitInstalled) {
-        Write-Fail "Git 安装后仍找不到，请手动安装: https://git-scm.com/downloads/win"
+        Write-Fail "Git 自动安装失败，请手动下载安装: https://git-scm.com/downloads/win"
         Read-Host "`n按回车退出"
         exit 1
     }
