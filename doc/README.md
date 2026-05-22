@@ -6,6 +6,7 @@
 |------|------|
 | [README.md](../README.md) | 项目总览、脚本列表 |
 | [ns-doc.md](../ns-doc.md) | ns.ps1 网络快照工具完整文档 |
+| [be6500-openclash.md](be6500-openclash.md) | GL-BE6500 OpenClash 配置（代理组 + 自定义规则） |
 | [CLAUDE.md](../CLAUDE.md) | Claude Code 项目配置 |
 
 ## 文档规范

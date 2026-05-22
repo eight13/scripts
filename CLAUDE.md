@@ -41,6 +41,12 @@
 | `ns.ps1` | PowerShell | PowerShell 5.1+ / 管理员权限（部分功能） |
 | `forge-buddy.mjs` | JavaScript (ESM) | Node.js 18+ |
 | `setup-claude.ps1` | PowerShell | PowerShell 5.1+ / winget |
+| `repair-openclash.ps1` | PowerShell | PowerShell 5.1+ / SSH + ASKPASS |
+| `openclash_custom_overwrite.sh` | Shell | OpenWrt / OpenClash custom script |
+| `check-proxy.ps1` | PowerShell | PowerShell 5.1+ |
+| `diag-network.ps1` | PowerShell | PowerShell 5.1+ |
+| `disable-ics.ps1` | PowerShell | PowerShell 5.1+ / 管理员权限 |
+| `disable-ics.bat` | Batch | 管理员权限 |
 | `claude-starter/setup.ps1` | PowerShell | PowerShell 5.1+ / winget |
 
 ### 目录结构
@@ -51,6 +57,13 @@ scripts/
 ├── ns-doc.md               # ns.ps1 完整文档
 ├── forge-buddy.mjs         # Claude Code companion 宠物锻造（~510 行）
 ├── setup-claude.ps1        # 个人用：一键部署 Claude Code 全量配置
+├── repair-openclash.ps1    # OpenClash 故障诊断修复工具
+├── openclash_custom_overwrite.sh  # OpenClash 自定义规则注入脚本（路由器端）
+├── bsc.yaml                # OpenClash 订阅配置
+├── check-proxy.ps1         # 系统代理状态检查（只读）
+├── diag-network.ps1        # 网络诊断工具
+├── disable-ics.ps1         # ICS 服务禁用（PowerShell）
+├── disable-ics.bat         # ICS + HNS 服务禁用（Batch）
 ├── claude-starter/         # 朋友用：精简版 Claude Code 配置包
 │   ├── setup.ps1          #   一键部署脚本（从 GitHub 下载，无需认证）
 │   ├── README.md          #   使用说明
@@ -64,7 +77,8 @@ scripts/
 │       ├── review/        #   代码审查
 │       └── create-skill/  #   创建新技能
 ├── doc/
-│   └── README.md          # 文档总索引
+│   ├── README.md          # 文档总索引
+│   └── be6500-openclash.md# OpenClash 配置文档
 ├── CLAUDE.md               # 项目配置（本文件）
 └── .claude/
     └── project-lessons.md # 项目经验
@@ -88,10 +102,31 @@ scripts/
 - **算法**: FNV-1a 哈希 + Mulberry32 PRNG（逆向自 Claude Code cli.js）
 - **结构**: 单文件 ESM 模块，无外部依赖
 
+### repair-openclash.ps1 + openclash_custom_overwrite.sh — OpenClash 路由器管理
+
+- **repair-openclash.ps1**: 一键诊断修复 OpenClash 故障
+  - 诊断 GeoIP.dat 是否损坏（正常 ~18MB）
+  - 自动下载替换损坏的 GeoIP.dat（GitHub Releases 直链）
+  - 解除 OpenClash disabled 状态 + 启动 + 验证
+  - 兼容 Dropbear SSH（ASKPASS + pipe 传输，不依赖 sftp-server）
+- **openclash_custom_overwrite.sh**: 部署在路由器 `/etc/openclash/custom/` 下
+  - OpenClash 每次生成配置后执行，注入自定义规则
+  - 本项目用途：注入 `🤖 AI` 代理组 + 21 条 AI 服务域名规则
+- **bsc.yaml**: OpenClash 订阅配置（Mihomo 内核）
+- **关键路径**: 路由器 `/etc/openclash/` 目录（GeoIP.dat、GeoSite.dat、config/、core/）
+- **详细知识**: `.claude/project-lessons.md` OpenClash 章节
+- **⚠️ 当用户提及 OpenClash/路由器/翻墙/节点故障时**，优先用 `repair-openclash.ps1` 诊断；如果用户提供的日志含 `GeoIP.dat` / `Parse config error`，是 GeoIP 损坏的明确信号
+
 ### setup-claude.ps1 — 个人一键部署
 
 - **功能**: 新电脑一键安装 Node.js/Git + 克隆 `eight13/claude-knowledge` 私有仓库到 `~/.claude/` + 关遥测
 - **适用**: 自己的新电脑
+
+### check-proxy.ps1 / diag-network.ps1 / disable-ics — 网络工具箱
+
+- **check-proxy.ps1**: 只读查询当前系统代理状态（Internet Settings），不改动任何设置
+- **diag-network.ps1**: 综合网络诊断（网关、DNS、路由器代理端口探测、直连测试）
+- **disable-ics.ps1 / disable-ics.bat**: 禁用 Windows ICS (Internet Connection Sharing) 和 HNS (Host Network Service) 服务，解决这些服务干扰网络的问题
 
 ### claude-starter/ — 朋友版精简配置
 
@@ -100,12 +135,12 @@ scripts/
 
 ## 编码约定
 
-### PowerShell (ns.ps1)
+### PowerShell
 
 - 使用 `$script:` 作用域管理全局变量
 - 分类配置使用 `[ordered]@{}` 哈希表
 - 中文注释和输出
-- 参数使用 ParameterSetName 分组
+- 可选参数使用 ParameterSetName 分组
 
 ### JavaScript (forge-buddy.mjs)
 
@@ -145,4 +180,10 @@ node forge-buddy.mjs --patch           # CLI 更新后重新 patch
 node forge-buddy.mjs --restore         # 恢复原始状态
 node forge-buddy.mjs --species penguin --rarity legendary --peak DEBUGGING --dump PATIENCE  # 完整搜索
 node forge-buddy.mjs --species cat --rarity epic --dry-run  # 搜索（不修改）
+
+# OpenClash 修复工具
+powershell -File repair-openclash.ps1 -RouterIp 192.168.8.1 -Password "yourpass"                 # 诊断+修复
+powershell -File repair-openclash.ps1 -RouterIp 192.168.8.1 -Password "yourpass" -DiagnoseOnly    # 仅诊断
+powershell -File repair-openclash.ps1 -RouterIp 192.168.8.1 -Password "yourpass" -ResetGeoIpOnly  # 仅修复 GeoIP
+powershell -File repair-openclash.ps1 -RouterIp 192.168.8.1 -Password "yourpass" -JustStart       # 仅启动
 ```
