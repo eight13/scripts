@@ -42,7 +42,9 @@
 | `forge-buddy.mjs` | JavaScript (ESM) | Node.js 18+ |
 | `setup-claude.ps1` | PowerShell | PowerShell 5.1+ / winget |
 | `repair-openclash.ps1` | PowerShell | PowerShell 5.1+ / SSH + ASKPASS |
+| `diag.py` | Python | Python 3.12+ / paramiko |
 | `openclash_custom_overwrite.sh` | Shell | OpenWrt / OpenClash custom script |
+| `upload-openclash-custom.ps1` | PowerShell | PowerShell 5.1+ / scp |
 | `check-proxy.ps1` | PowerShell | PowerShell 5.1+ |
 | `diag-network.ps1` | PowerShell | PowerShell 5.1+ |
 | `disable-ics.ps1` | PowerShell | PowerShell 5.1+ / 管理员权限 |
@@ -181,7 +183,10 @@ node forge-buddy.mjs --restore         # 恢复原始状态
 node forge-buddy.mjs --species penguin --rarity legendary --peak DEBUGGING --dump PATIENCE  # 完整搜索
 node forge-buddy.mjs --species cat --rarity epic --dry-run  # 搜索（不修改）
 
-# OpenClash 修复工具
+# OpenClash 诊断修复
+python diag.py -p "yourpass" --check                              # 快速连通性检查
+python diag.py -p "yourpass" --fix                                 # 诊断 + 修复
+python diag.py -p "yourpass" --upload openclash_custom_overwrite.sh # 上传 overwrite 脚本
 powershell -File repair-openclash.ps1 -RouterIp 192.168.8.1 -Password "yourpass"                 # 诊断+修复
 powershell -File repair-openclash.ps1 -RouterIp 192.168.8.1 -Password "yourpass" -DiagnoseOnly    # 仅诊断
 powershell -File repair-openclash.ps1 -RouterIp 192.168.8.1 -Password "yourpass" -ResetGeoIpOnly  # 仅修复 GeoIP
