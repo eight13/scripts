@@ -155,121 +155,53 @@ ruby -ryaml -rYAML -I "/usr/share/openclash" -E UTF-8 -e "
    end" 2>/dev/null >> $LOG_FILE
 # ========== END ==========
 
-# ========== 自定义 🤖 AI 代理组 + 规则注入 ==========
-LOG_OUT "Injecting 🤖 AI proxy group and rules..."
+# ========== 反作弊 + Ubisoft 直连规则注入 ==========
+# 模板已有 🤖 AI服务/🎮 游戏平台/🤖 ChatGPT 等组，不再额外注入代理组
+# 仅插入反作弊和 Ubisoft 直连规则（必须在 GEOSITE,category-games 之前）
+LOG_OUT "Injecting anti-cheat DIRECT rules..."
 ruby -ryaml -rYAML -I "/usr/share/openclash" -E UTF-8 -e "
    begin
       Value = YAML.load_file('$CONFIG_FILE');
    rescue Exception => e
-      puts '${LOGTIME} [error] Load File Failed,【' + e.message + '】';
+      puts '${LOGTIME} [error] Load Failed,【' + e.message + '】';
    end;
 
    begin
    Thread.new{
-      Value['proxy-groups'] ||= [];
-      # 🎮 游戏 + 🤖 AI 代理组 — 每次强制刷新（模板可能残留旧引用）
-      Value['proxy-groups'].reject! { |g| ['🤖 AI', '🎮 游戏'].include?(g['name']) }
-
-      Value['proxy-groups'].unshift({
-         'name' => '🎮 游戏',
-         'type' => 'select',
-         'proxies' => ['♻️ 自动选择', '🚀 手动选择', '🇭🇰 香港节点', '🇯🇵 日本节点', '🇸🇬 新加坡节点', '🇺🇸 美国节点', '🇼🇸 台湾节点', 'DIRECT']
-      });
-
-      Value['proxy-groups'].unshift({
-            'name' => '🤖 AI',
-            'type' => 'select',
-            'proxies' => ['♻️ 自动选择', '🚀 手动选择', '🇭🇰 香港节点', '🇯🇵 日本节点', '🇸🇬 新加坡节点', '🇺🇸 美国节点', '🇼🇸 台湾节点', 'DIRECT']
-         });
-
-      ai_rules = [
-         'DOMAIN-SUFFIX,openai.com,🤖 AI',
-         'DOMAIN-SUFFIX,chatgpt.com,🤖 AI',
-         'DOMAIN-SUFFIX,oaistatic.com,🤖 AI',
-         'DOMAIN-SUFFIX,oaiusercontent.com,🤖 AI',
-         'DOMAIN-SUFFIX,anthropic.com,🤖 AI',
-         'DOMAIN-SUFFIX,claude.ai,🤖 AI',
-         'DOMAIN-SUFFIX,gemini.google.com,🤖 AI',
-         'DOMAIN-SUFFIX,bard.google.com,🤖 AI',
-         'DOMAIN-SUFFIX,ai.google.dev,🤖 AI',
-         'DOMAIN-SUFFIX,generativelanguage.googleapis.com,🤖 AI',
-         'DOMAIN-SUFFIX,copilot.microsoft.com,🤖 AI',
-         'DOMAIN-KEYWORD,perplexity,🤖 AI',
-         'DOMAIN-SUFFIX,poe.com,🤖 AI',
-         'DOMAIN-SUFFIX,character.ai,🤖 AI',
-         'DOMAIN-SUFFIX,cursor.sh,🤖 AI',
-         'DOMAIN-SUFFIX,cursor.com,🤖 AI',
-         'DOMAIN-SUFFIX,huggingface.co,🤖 AI'
-      ];
-      # R6/Ubisoft 游戏 — 走代理
-      r6_game_rules = [
-         'DOMAIN-SUFFIX,ubisoft.com,🎮 游戏', 'DOMAIN-SUFFIX,ubi.com,🎮 游戏',
-         'DOMAIN-SUFFIX,uplay.com,🎮 游戏', 'DOMAIN-SUFFIX,ubisoftconnect.com,🎮 游戏',
-         'DOMAIN-SUFFIX,rainbow6.com,🎮 游戏', 'DOMAIN-SUFFIX,rainbowsix.com,🎮 游戏',
-         'DOMAIN-KEYWORD,ubisoft,🎮 游戏', 'DOMAIN-KEYWORD,rainbowsix,🎮 游戏'
-      ];
-      # Rockstar 游戏 — 走代理
-      rstar_game_rules = [
-         'DOMAIN-SUFFIX,rockstargames.com,🎮 游戏', 'DOMAIN-SUFFIX,socialclub.rockstargames.com,🎮 游戏',
-         'DOMAIN-KEYWORD,rockstar,🎮 游戏'
-      ];
-      # 反作弊 + 游戏CDN — 必须直连
-      game_direct_rules = [
+      direct_ac_rules = [
+         # BattlEye + EAC + Denuvo
          'DOMAIN-SUFFIX,battleye.b-cdn.net,DIRECT', 'DOMAIN-SUFFIX,cdn.battleye.com,DIRECT',
          'DOMAIN-SUFFIX,battleye.com,DIRECT', 'DOMAIN-SUFFIX,easyanticheat.net,DIRECT',
          'DOMAIN-SUFFIX,easy.ac,DIRECT', 'DOMAIN-SUFFIX,denuvo.com,DIRECT',
          'DOMAIN-SUFFIX,steamserver.net,DIRECT', 'DOMAIN-SUFFIX,equ8.com,DIRECT',
+         # Ubisoft/R6 登录 — 不走代理
+         'DOMAIN-SUFFIX,ubisoft.com,DIRECT', 'DOMAIN-SUFFIX,ubi.com,DIRECT',
+         'DOMAIN-SUFFIX,uplay.com,DIRECT', 'DOMAIN-SUFFIX,ubisoftconnect.com,DIRECT',
+         'DOMAIN-SUFFIX,rainbow6.com,DIRECT', 'DOMAIN-SUFFIX,rainbowsix.com,DIRECT',
+         'DOMAIN-KEYWORD,ubisoft,DIRECT', 'DOMAIN-KEYWORD,rainbowsix,DIRECT',
+         # Steam/Epic 下载 CDN
          'DOMAIN-SUFFIX,steamcontent.com,DIRECT', 'DOMAIN-SUFFIX,steamstatic.com,DIRECT',
-         'DOMAIN-SUFFIX,steampowered.com,DIRECT', 'DOMAIN-SUFFIX,steamcommunity.com,DIRECT',
          'DOMAIN-SUFFIX,epicgames.com,DIRECT', 'DOMAIN-SUFFIX,gog.com,DIRECT',
-         'DOMAIN-SUFFIX,battle.net,DIRECT', 'DOMAIN-SUFFIX,blizzard.com,DIRECT',
-      ];
-      qiyou_relay_ips = [
+         # 奇游加速器
          'IP-CIDR,101.37.162.0/24,DIRECT', 'IP-CIDR,121.40.0.0/16,DIRECT',
-         'IP-CIDR,47.99.0.0/16,DIRECT', 'IP-CIDR,116.162.32.0/20,DIRECT',
+         'IP-CIDR,47.99.0.0/16,DIRECT',
       ];
-
-      Value['rules'] ||= [];
-      # 把反作弊/Ubisoft 直连规则插到 category-games 前面（而非 prepend）
-      # 否则 GEOSITE,category-games 会先匹配并走代理，导致 BattlEye/R6 登录失败
-      direct_ac_rules = game_direct_rules + qiyou_relay_ips + [
-         'DOMAIN-SUFFIX,ubisoft.com,DIRECT',
-         'DOMAIN-SUFFIX,ubi.com,DIRECT',
-         'DOMAIN-SUFFIX,uplay.com,DIRECT',
-         'DOMAIN-SUFFIX,ubisoftconnect.com,DIRECT',
-         'DOMAIN-SUFFIX,ubisoft.org,DIRECT',
-         'DOMAIN-SUFFIX,ubisoftcdn.com,DIRECT',
-         'DOMAIN-SUFFIX,rainbow6.com,DIRECT',
-         'DOMAIN-SUFFIX,rainbowsix.com,DIRECT',
-         'DOMAIN-KEYWORD,ubisoft,DIRECT',
-         'DOMAIN-KEYWORD,rainbowsix,DIRECT',
-      ];
-      ai_game_rules = rstar_game_rules + r6_game_rules + ai_rules;
-      # 先插 AI/游戏代理规则（走代理），再插直连规则（在 category-games 前）
+      # 插到 category-games 前面
       idx = Value['rules'].index { |r| r.to_s.include?('category-games') }
       if idx
          direct_ac_rules.reverse.each { |r| Value['rules'].insert(idx, r) }
-         ai_game_rules.each { |r| Value['rules'].insert(0, r) }
       else
-         Value['rules'] = direct_ac_rules + ai_game_rules + Value['rules']
-      end
+         Value['rules'] = direct_ac_rules + Value['rules']
+      end;
       Value['rules'].uniq!;
 
-      # DNS 强制真解析：反作弊域名绕过 fake-ip
+      # DNS 设置补全 + 反作弊域名强制真解析
       Value['dns'] ||= {};
       Value['dns']['nameserver-policy'] ||= {};
-      dns_direct_domains = [
-         'battleye.b-cdn.net',
-         'cdn.battleye.com',
-         'battleye.com',
-         'easyanticheat.net',
-         'easy.ac',
-         'denuvo.com',
-         'equ8.com'
-      ];
-      dns_direct_domains.each { |d| Value['dns']['nameserver-policy'][d] = '223.5.5.5' };
+      ['battleye.b-cdn.net','cdn.battleye.com','battleye.com',
+       'easyanticheat.net','easy.ac','denuvo.com','equ8.com'
+      ].each { |d| Value['dns']['nameserver-policy'][d] = '223.5.5.5' };
 
-      # 显式写入 DNS 设置，防止 YAML.dump 丢失模板配置
       Value['dns']['enable'] = true;
       Value['dns']['ipv6'] = false;
       Value['dns']['enhanced-mode'] = 'fake-ip';
@@ -280,10 +212,12 @@ ruby -ryaml -rYAML -I "/usr/share/openclash" -E UTF-8 -e "
       Value['dns']['nameserver'] = ['192.168.1.1'];
       Value['dns']['default-nameserver'] = ['114.114.114.114', '119.29.29.29', '223.5.5.5'];
       Value['dns']['proxy-server-nameserver'] = ['192.168.1.1', '114.114.114.114', '119.29.29.29', '223.5.5.5'];
+      # external-controller 绑定 0.0.0.0（否则 OpenClash 每次重置为 127.0.0.1）
+      Value['external-controller'] = '0.0.0.0:9090';
    }.join;
 
    rescue Exception => e
-      puts '${LOGTIME} [error] Set AI Group Failed,【' + e.message + '】';
+      puts '${LOGTIME} [error] Direct rules failed,【' + e.message + '】';
    ensure
       File.open('$CONFIG_FILE','w') {|f| YAML.dump(Value, f)};
    end" 2>/dev/null >> $LOG_FILE
@@ -302,24 +236,39 @@ if [ "$REDIRECT" != "0" ]; then
    LOG_OUT "DNS Rescue: Disabled enable_redirect_dns"
 fi
 
-# 删除 nftables DNS 劫持规则（OpenClash DNS Hijack in dstnat + nat_output）
-nft list chain inet fw4 dstnat 2>/dev/null | grep -q "OpenClash DNS Hijack" && {
-   nft flush chain inet fw4 dstnat 2>/dev/null
-   LOG_OUT "DNS Rescue: Flushed dstnat DNS hijack rules"
-}
-nft list chain inet fw4 nat_output 2>/dev/null | grep -q "OpenClash DNS Hijack" && {
-   nft flush chain inet fw4 nat_output 2>/dev/null
-   LOG_OUT "DNS Rescue: Flushed nat_output DNS hijack rules"
-}
+# 精确删除 nftables DNS 劫持规则（用 handle 而非 flush，保护端口转发等用户规则）
+for chain in dstnat nat_output; do
+   nft -a list chain inet fw4 $chain 2>/dev/null | \
+      awk '/OpenClash DNS Hijack/{print $NF}' | \
+      while read handle; do
+         nft delete rule inet fw4 $chain handle "$handle" 2>/dev/null
+         LOG_OUT "DNS Rescue: Deleted $chain DNS hijack rule (handle $handle)"
+      done
+done
 
 CURRENT_DNS=$(uci -q get dhcp.@dnsmasq[0].server 2>/dev/null)
 if echo "$CURRENT_DNS" | grep -q "127.0.0.1#7874"; then
    uci -q del_list dhcp.@dnsmasq[0].server='127.0.0.1#7874' 2>/dev/null
    uci -q add_list dhcp.@dnsmasq[0].server='192.168.1.1' 2>/dev/null
    uci commit dhcp 2>/dev/null
-   killall dnsmasq 2>/dev/null
-   /etc/init.d/dnsmasq start 2>/dev/null &
+   /etc/init.d/dnsmasq restart 2>/dev/null
    LOG_OUT "DNS Rescue: dnsmasq upstream -> 192.168.1.1 (was 127.0.0.1#7874)"
+else
+   # 已修复：确保 fallback DNS 存在（光猫不可达时兜底）
+   if ! echo "$CURRENT_DNS" | grep -q "114.114.114.114"; then
+      uci -q add_list dhcp.@dnsmasq[0].server='114.114.114.114' 2>/dev/null
+      uci -q add_list dhcp.@dnsmasq[0].server='223.5.5.5' 2>/dev/null
+      uci commit dhcp 2>/dev/null
+      /etc/init.d/dnsmasq restart 2>/dev/null
+      LOG_OUT "DNS Rescue: Added fallback DNS (114.114.114.114, 223.5.5.5)"
+   fi
+fi
+
+# cron 守护：每分钟检查 enable_redirect_dns 不被外部改回
+if ! grep -q "enable_redirect_dns" /etc/crontabs/root 2>/dev/null; then
+   echo '* * * * * [ "$(uci -q get openclash.config.enable_redirect_dns)" != "0" ] && uci -q set openclash.config.enable_redirect_dns=0 && uci commit openclash && echo "$(date) DNS Guard: reset enable_redirect_dns to 0" >> /tmp/openclash.log' >> /etc/crontabs/root
+   /etc/init.d/cron restart 2>/dev/null
+   LOG_OUT "DNS Rescue: Added cron guard for enable_redirect_dns"
 fi
 # ========== END DNS Rescue ==========
 
