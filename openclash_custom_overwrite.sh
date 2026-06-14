@@ -167,20 +167,20 @@ ruby -ryaml -rYAML -I "/usr/share/openclash" -E UTF-8 -e "
    begin
    Thread.new{
       Value['proxy-groups'] ||= [];
-      unless Value['proxy-groups'].any? { |g| g['name'] == '🤖 AI' }
-               # 🎮 游戏代理组 — 手动选择节点
+      # 🎮 游戏 + 🤖 AI 代理组 — 每次强制刷新（模板可能残留旧引用）
+      Value['proxy-groups'].reject! { |g| ['🤖 AI', '🎮 游戏'].include?(g['name']) }
+
       Value['proxy-groups'].unshift({
          'name' => '🎮 游戏',
          'type' => 'select',
-         'proxies' => ['♻️ 自动选择', '🔰 节点选择', 'DIRECT']
+         'proxies' => ['♻️ 自动选择', '🚀 手动选择', '🇭🇰 香港节点', '🇯🇵 日本节点', '🇸🇬 新加坡节点', '🇺🇸 美国节点', '🇼🇸 台湾节点', 'DIRECT']
       });
 
       Value['proxy-groups'].unshift({
             'name' => '🤖 AI',
             'type' => 'select',
-            'proxies' => ['♻️ 自动选择', '🔰 节点选择', 'DIRECT']
+            'proxies' => ['♻️ 自动选择', '🚀 手动选择', '🇭🇰 香港节点', '🇯🇵 日本节点', '🇸🇬 新加坡节点', '🇺🇸 美国节点', '🇼🇸 台湾节点', 'DIRECT']
          });
-      end;
 
       ai_rules = [
          'DOMAIN-SUFFIX,openai.com,🤖 AI',
@@ -201,114 +201,58 @@ ruby -ryaml -rYAML -I "/usr/share/openclash" -E UTF-8 -e "
          'DOMAIN-SUFFIX,cursor.com,🤖 AI',
          'DOMAIN-SUFFIX,huggingface.co,🤖 AI'
       ];
-      Value['rules'] ||= [];
-      Value['rules'] = ai_rules + Value['rules'];
-      Value['rules'].uniq!;
-
-      # 🎮 Ubisoft/R6 游戏流量 — 走代理最快节点
+      # R6/Ubisoft 游戏 — 走代理
       r6_game_rules = [
-         'DOMAIN-SUFFIX,ubisoft.com,🎮 游戏',
-         'DOMAIN-SUFFIX,ubi.com,🎮 游戏',
-         'DOMAIN-SUFFIX,uplay.com,🎮 游戏',
-         'DOMAIN-SUFFIX,ubisoftconnect.com,🎮 游戏',
-         'DOMAIN-SUFFIX,ubisoft.org,🎮 游戏',
-         'DOMAIN-SUFFIX,ubisoftcdn.com,🎮 游戏',
-         'DOMAIN-SUFFIX,rainbow6.com,🎮 游戏',
-         'DOMAIN-SUFFIX,rainbowsix.com,🎮 游戏',
-         'DOMAIN-SUFFIX,rainbowsixgame.com,🎮 游戏',
-         'DOMAIN-SUFFIX,r6s.ubi.com,🎮 游戏',
-         'DOMAIN-SUFFIX,r6stats.com,🎮 游戏',
-         'DOMAIN-SUFFIX,ubisoft-patch.com,🎮 游戏',
-         'DOMAIN-SUFFIX,ubisoft-download.com,🎮 游戏',
-         'DOMAIN-KEYWORD,ubisoft,🎮 游戏',
-         'DOMAIN-KEYWORD,rainbowsix,🎮 游戏'
+         'DOMAIN-SUFFIX,ubisoft.com,🎮 游戏', 'DOMAIN-SUFFIX,ubi.com,🎮 游戏',
+         'DOMAIN-SUFFIX,uplay.com,🎮 游戏', 'DOMAIN-SUFFIX,ubisoftconnect.com,🎮 游戏',
+         'DOMAIN-SUFFIX,rainbow6.com,🎮 游戏', 'DOMAIN-SUFFIX,rainbowsix.com,🎮 游戏',
+         'DOMAIN-KEYWORD,ubisoft,🎮 游戏', 'DOMAIN-KEYWORD,rainbowsix,🎮 游戏'
       ];
-      Value['rules'] = r6_game_rules + Value['rules'];
-      Value['rules'].uniq!;
-
-      # 🎮 Rockstar 游戏流量 — 走最快节点
+      # Rockstar 游戏 — 走代理
       rstar_game_rules = [
-         'DOMAIN-SUFFIX,rockstargames.com,🎮 游戏',
-         'DOMAIN-SUFFIX,rockstarnorth.com,🎮 游戏',
-         'DOMAIN-SUFFIX,socialclub.rockstargames.com,🎮 游戏',
-         'DOMAIN-SUFFIX,rockstarsocialclub.net,🎮 游戏',
-         'DOMAIN-SUFFIX,gtav.com,🎮 游戏',
-         'DOMAIN-SUFFIX,reddeadonline.com,🎮 游戏',
-         'DOMAIN-SUFFIX,rgsc.io,🎮 游戏',
-         'DOMAIN-SUFFIX,rsg.sc,🎮 游戏',
+         'DOMAIN-SUFFIX,rockstargames.com,🎮 游戏', 'DOMAIN-SUFFIX,socialclub.rockstargames.com,🎮 游戏',
          'DOMAIN-KEYWORD,rockstar,🎮 游戏'
       ];
-      Value['rules'] = rstar_game_rules + Value['rules'];
-      Value['rules'].uniq!;
-
-# 🛡 反作弊/游戏后端 — 必须直连，走代理必挂
+      # 反作弊 + 游戏CDN — 必须直连
       game_direct_rules = [
-         # BattlEye
-         'DOMAIN-SUFFIX,battleye.b-cdn.net,DIRECT',
-         'DOMAIN-SUFFIX,cdn.battleye.com,DIRECT',
-         'DOMAIN-SUFFIX,battleye.com,DIRECT',
-         # EasyAntiCheat (EAC) — Fortnite/Apex/Division 等
-         'DOMAIN-SUFFIX,easyanticheat.net,DIRECT',
-         'DOMAIN-SUFFIX,easy.ac,DIRECT',
-         # Denuvo Anti-Cheat
-         'DOMAIN-SUFFIX,denuvo.com,DIRECT',
-         # Valve Anti-Cheat (VAC) + Steam 后端
-         'DOMAIN-SUFFIX,steamserver.net,DIRECT',
-         # EQU8
-         'DOMAIN-SUFFIX,equ8.com,DIRECT',
-
-         # Epic Online Services
-         'DOMAIN-SUFFIX,eos-cdn.com,DIRECT',
-         'DOMAIN-SUFFIX,epicgames.dev,DIRECT',
-         # EA / Origin
-         'DOMAIN-SUFFIX,ea.com,DIRECT',
-         'DOMAIN-SUFFIX,origin.com,DIRECT',
-
-         # 🎮 Steam 下载 CDN — 直连满速
-         'DOMAIN-SUFFIX,steamcontent.com,DIRECT',
-         'DOMAIN-SUFFIX,steamcdn.com,DIRECT',
-         'DOMAIN-SUFFIX,steamstatic.com,DIRECT',
-         'DOMAIN-SUFFIX,steamcommunity.com,DIRECT',
-         'DOMAIN-SUFFIX,steampowered.com,DIRECT',
-         'DOMAIN-SUFFIX,steam-chat.com,DIRECT',
-         'DOMAIN-SUFFIX,akamaihd.net,DIRECT',
-         'DOMAIN-SUFFIX,cloudflaresteam.com,DIRECT',
-         'DOMAIN-SUFFIX,valvesoftware.com,DIRECT',
-         # 🎮 Epic Games 下载 CDN
-         'DOMAIN-SUFFIX,epicgames.com,DIRECT',
-         'DOMAIN-SUFFIX,ol.epicgames.com,DIRECT',
-         'DOMAIN-SUFFIX,download.epicgames.com,DIRECT',
-         'DOMAIN-SUFFIX,download2.epicgames.com,DIRECT',
-         'DOMAIN-SUFFIX,download3.epicgames.com,DIRECT',
-         'DOMAIN-SUFFIX,download4.epicgames.com,DIRECT',
-         'DOMAIN-SUFFIX,epicgames-download1.akamaized.net,DIRECT',
-         'DOMAIN-SUFFIX,fastly.steamstatic.com,DIRECT',
-         'DOMAIN-KEYWORD,epicgamescdn,DIRECT',
-         # 🎮 通用游戏 CDN
-         'DOMAIN-SUFFIX,gog.com,DIRECT',
-         'DOMAIN-SUFFIX,gog-statics.com,DIRECT',
-         'DOMAIN-SUFFIX,gog.qtlglb.com,DIRECT',
-         'DOMAIN-SUFFIX,battle.net,DIRECT',
-         'DOMAIN-SUFFIX,blizzard.com,DIRECT',
-         'DOMAIN-SUFFIX,blzstatic.cn,DIRECT'
+         'DOMAIN-SUFFIX,battleye.b-cdn.net,DIRECT', 'DOMAIN-SUFFIX,cdn.battleye.com,DIRECT',
+         'DOMAIN-SUFFIX,battleye.com,DIRECT', 'DOMAIN-SUFFIX,easyanticheat.net,DIRECT',
+         'DOMAIN-SUFFIX,easy.ac,DIRECT', 'DOMAIN-SUFFIX,denuvo.com,DIRECT',
+         'DOMAIN-SUFFIX,steamserver.net,DIRECT', 'DOMAIN-SUFFIX,equ8.com,DIRECT',
+         'DOMAIN-SUFFIX,steamcontent.com,DIRECT', 'DOMAIN-SUFFIX,steamstatic.com,DIRECT',
+         'DOMAIN-SUFFIX,steampowered.com,DIRECT', 'DOMAIN-SUFFIX,steamcommunity.com,DIRECT',
+         'DOMAIN-SUFFIX,epicgames.com,DIRECT', 'DOMAIN-SUFFIX,gog.com,DIRECT',
+         'DOMAIN-SUFFIX,battle.net,DIRECT', 'DOMAIN-SUFFIX,blizzard.com,DIRECT',
       ];
-      # 🚀 奇游加速器中继 IP — 必须直连，否则加速器隧道被 OpenClash 废掉
-      # IP 动态变化，每次启动需更新。同时用 /24 段覆盖减少遗漏
       qiyou_relay_ips = [
-         'IP-CIDR,101.37.162.0/24,DIRECT',
-         'IP-CIDR,112.83.140.0/24,DIRECT',
-         'IP-CIDR,116.162.32.0/20,DIRECT',
-         'IP-CIDR,121.40.0.0/16,DIRECT',
-         'IP-CIDR,122.248.50.0/24,DIRECT',
-         'IP-CIDR,162.14.126.0/24,DIRECT',
-         'IP-CIDR,221.15.71.0/24,DIRECT',
-         'IP-CIDR,27.44.0.0/16,DIRECT',
-         'IP-CIDR,47.99.0.0/16,DIRECT',
-         'IP-CIDR,58.144.0.0/16,DIRECT',
-         'IP-CIDR,61.240.206.0/24,DIRECT',
-         'IP-CIDR,1.14.0.0/16,DIRECT'
+         'IP-CIDR,101.37.162.0/24,DIRECT', 'IP-CIDR,121.40.0.0/16,DIRECT',
+         'IP-CIDR,47.99.0.0/16,DIRECT', 'IP-CIDR,116.162.32.0/20,DIRECT',
       ];
-      Value['rules'] = game_direct_rules + qiyou_relay_ips + Value['rules'];
+
+      Value['rules'] ||= [];
+      # 把反作弊/Ubisoft 直连规则插到 category-games 前面（而非 prepend）
+      # 否则 GEOSITE,category-games 会先匹配并走代理，导致 BattlEye/R6 登录失败
+      direct_ac_rules = game_direct_rules + qiyou_relay_ips + [
+         'DOMAIN-SUFFIX,ubisoft.com,DIRECT',
+         'DOMAIN-SUFFIX,ubi.com,DIRECT',
+         'DOMAIN-SUFFIX,uplay.com,DIRECT',
+         'DOMAIN-SUFFIX,ubisoftconnect.com,DIRECT',
+         'DOMAIN-SUFFIX,ubisoft.org,DIRECT',
+         'DOMAIN-SUFFIX,ubisoftcdn.com,DIRECT',
+         'DOMAIN-SUFFIX,rainbow6.com,DIRECT',
+         'DOMAIN-SUFFIX,rainbowsix.com,DIRECT',
+         'DOMAIN-KEYWORD,ubisoft,DIRECT',
+         'DOMAIN-KEYWORD,rainbowsix,DIRECT',
+      ];
+      ai_game_rules = rstar_game_rules + r6_game_rules + ai_rules;
+      # 先插 AI/游戏代理规则（走代理），再插直连规则（在 category-games 前）
+      idx = Value['rules'].index { |r| r.to_s.include?('category-games') }
+      if idx
+         direct_ac_rules.reverse.each { |r| Value['rules'].insert(idx, r) }
+         ai_game_rules.each { |r| Value['rules'].insert(0, r) }
+      else
+         Value['rules'] = direct_ac_rules + ai_game_rules + Value['rules']
+      end
       Value['rules'].uniq!;
 
       # DNS 强制真解析：反作弊域名绕过 fake-ip
