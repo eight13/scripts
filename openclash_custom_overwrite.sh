@@ -349,15 +349,14 @@ ruby -ryaml -rYAML -I "/usr/share/openclash" -E UTF-8 -e "
 # OpenClash 会将 dnsmasq 上游设为 127.0.0.1#7874（clash DNS），
 # 但 clash DNS 在 fake-ip 模式下对直连域名不响应，导致全部 DNS 超时。
 # 此修复将 dnsmasq 上游切回光猫 DNS（192.168.1.1），国内秒开、国外走 TUN
-DNS_FIX_APPLIED=$(uci -q get openclash.config.dns_fix_applied 2>/dev/null)
-if [ "$DNS_FIX_APPLIED" != "1" ]; then
+# 每次执行都检查 — OpenClash 会反复回写 127.0.0.1#7874
+CURRENT_DNS=$(uci -q get dhcp.@dnsmasq[0].server 2>/dev/null)
+if echo "$CURRENT_DNS" | grep -q "127.0.0.1#7874"; then
    uci -q del_list dhcp.@dnsmasq[0].server='127.0.0.1#7874' 2>/dev/null
    uci -q add_list dhcp.@dnsmasq[0].server='192.168.1.1' 2>/dev/null
-   uci -q set openclash.config.dns_fix_applied='1'
    uci commit dhcp 2>/dev/null
-   uci commit openclash 2>/dev/null
    /etc/init.d/dnsmasq restart 2>/dev/null &
-   LOG_OUT "DNS Rescue: Switched dnsmasq upstream to 192.168.1.1 (was 127.0.0.1#7874)"
+   LOG_OUT "DNS Rescue: Fixed dnsmasq upstream (was 127.0.0.1#7874 -> 192.168.1.1)"
 fi
 # ========== END DNS Rescue ==========
 
