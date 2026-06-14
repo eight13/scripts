@@ -345,18 +345,37 @@ ruby -ryaml -rYAML -I "/usr/share/openclash" -E UTF-8 -e "
    end" 2>/dev/null >> $LOG_FILE
 # ========== END ==========
 
-# ========== DNS Rescue: 修复 dnsmasq 向 clash 7874 转发导致的 DNS 死循环 ==========
-# OpenClash 会将 dnsmasq 上游设为 127.0.0.1#7874（clash DNS），
-# 但 clash DNS 在 fake-ip 模式下对直连域名不响应，导致全部 DNS 超时。
-# 此修复将 dnsmasq 上游切回光猫 DNS（192.168.1.1），国内秒开、国外走 TUN
-# 每次执行都检查 — OpenClash 会反复回写 127.0.0.1#7874
+# ========== DNS Rescue: 永久修复 DNS 死循环 ==========
+# 三层拦截：
+#  1. 关掉 OpenClash 的 redirect_dns，阻止 watchdog 回写
+#  2. 删掉 nftables DNS 劫持规则（会绕过 dnsmasq 直接送 clash TUN）
+#  3. dnsmasq 切到光猫上游 192.168.1.1，不再转发 clash:7874
+REDIRECT=$(uci -q get openclash.config.enable_redirect_dns 2>/dev/null)
+if [ "$REDIRECT" != "0" ]; then
+   uci -q set openclash.config.enable_redirect_dns='0'
+   uci -q set openclash.config.redirect_dns='0'
+   uci commit openclash 2>/dev/null
+   LOG_OUT "DNS Rescue: Disabled enable_redirect_dns"
+fi
+
+# 删除 nftables DNS 劫持规则（OpenClash DNS Hijack in dstnat + nat_output）
+nft list chain inet fw4 dstnat 2>/dev/null | grep -q "OpenClash DNS Hijack" && {
+   nft flush chain inet fw4 dstnat 2>/dev/null
+   LOG_OUT "DNS Rescue: Flushed dstnat DNS hijack rules"
+}
+nft list chain inet fw4 nat_output 2>/dev/null | grep -q "OpenClash DNS Hijack" && {
+   nft flush chain inet fw4 nat_output 2>/dev/null
+   LOG_OUT "DNS Rescue: Flushed nat_output DNS hijack rules"
+}
+
 CURRENT_DNS=$(uci -q get dhcp.@dnsmasq[0].server 2>/dev/null)
 if echo "$CURRENT_DNS" | grep -q "127.0.0.1#7874"; then
    uci -q del_list dhcp.@dnsmasq[0].server='127.0.0.1#7874' 2>/dev/null
    uci -q add_list dhcp.@dnsmasq[0].server='192.168.1.1' 2>/dev/null
    uci commit dhcp 2>/dev/null
-   /etc/init.d/dnsmasq restart 2>/dev/null &
-   LOG_OUT "DNS Rescue: Fixed dnsmasq upstream (was 127.0.0.1#7874 -> 192.168.1.1)"
+   killall dnsmasq 2>/dev/null
+   /etc/init.d/dnsmasq start 2>/dev/null &
+   LOG_OUT "DNS Rescue: dnsmasq upstream -> 192.168.1.1 (was 127.0.0.1#7874)"
 fi
 # ========== END DNS Rescue ==========
 
