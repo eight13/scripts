@@ -247,6 +247,14 @@ for chain in dstnat nat_output; do
 done
 
 CURRENT_DNS=$(uci -q get dhcp.@dnsmasq[0].server 2>/dev/null)
+# dnsmasq 缓存修复：fake-IP 模式下设 0 合理，但 DNS Rescue 后直连光猫，需要缓存真实 IP
+if [ "$(uci -q get dhcp.@dnsmasq[0].cachesize)" = "0" ]; then
+   uci -q set dhcp.@dnsmasq[0].cachesize='150'
+   uci -q set openclash.config.dnsmasq_cachesize='150'
+   uci commit dhcp 2>/dev/null
+   uci commit openclash 2>/dev/null
+   LOG_OUT "DNS Rescue: Restored dnsmasq cachesize to 150 (was 0)"
+fi
 if echo "$CURRENT_DNS" | grep -q "127.0.0.1#7874"; then
    uci -q del_list dhcp.@dnsmasq[0].server='127.0.0.1#7874' 2>/dev/null
    uci -q add_list dhcp.@dnsmasq[0].server='192.168.1.1' 2>/dev/null
