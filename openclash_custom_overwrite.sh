@@ -177,6 +177,9 @@ ruby -ryaml -rYAML -I "/usr/share/openclash" -E UTF-8 -e "
          {'name' => '🇼🇸 台湾节点', 'filter' => '(?i)(台湾|台北|新北|彰化|TW|Taiwan|台|TPE)'},
          {'name' => '🇰🇷 韩国节点', 'filter' => '(?i)(韩国|首尔|KR|Korea|Seoul|韩|ICN)'},
       ];
+      # 只有 provider 存在时才添加地区组（订阅拉不到时 provider 为空）
+      provider_name = Value['proxy-providers']&.keys&.first
+      if provider_name
       region_groups.each do |g|
          next if Value['proxy-groups'].any? { |pg| pg['name'] == g['name'] }
          # 插到漏网之鱼前面
@@ -187,6 +190,7 @@ ruby -ryaml -rYAML -I "/usr/share/openclash" -E UTF-8 -e "
             'proxies' => ['♻️ 自动选择', '🚀 节点选择', 'DIRECT']
          })
       end
+      end # if provider_name
 
       direct_ac_rules = [
          # BattlEye + EAC + Denuvo
