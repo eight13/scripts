@@ -168,6 +168,26 @@ ruby -ryaml -rYAML -I "/usr/share/openclash" -E UTF-8 -e "
 
    begin
    Thread.new{
+      # 地区节点分组 — 按关键词从 Provider_2AB7F1 筛选
+      region_groups = [
+         {'name' => '🇭🇰 香港节点', 'filter' => '(?i)(香港|HK|HKT|HGC|HKBN|PCCW|港)'},
+         {'name' => '🇯🇵 日本节点', 'filter' => '(?i)(日本|东京|大阪|Japan|JP|JPN|日|NRT|HND)'},
+         {'name' => '🇸🇬 新加坡节点', 'filter' => '(?i)(新加坡|狮城|SG|Singapore|SIN|新)'},
+         {'name' => '🇺🇸 美国节点', 'filter' => '(?i)(美国|洛杉矶|硅谷|US|United|America|美|LAX|SJC)'},
+         {'name' => '🇼🇸 台湾节点', 'filter' => '(?i)(台湾|台北|新北|彰化|TW|Taiwan|台|TPE)'},
+         {'name' => '🇰🇷 韩国节点', 'filter' => '(?i)(韩国|首尔|KR|Korea|Seoul|韩|ICN)'},
+      ];
+      region_groups.each do |g|
+         next if Value['proxy-groups'].any? { |pg| pg['name'] == g['name'] }
+         # 插到漏网之鱼前面
+         idx = Value['proxy-groups'].index { |pg| pg['name'] == '🐟 漏网之鱼' } || -1
+         Value['proxy-groups'].insert(idx, {
+            'name' => g['name'], 'type' => 'select',
+            'use' => ['Provider_2AB7F1'], 'filter' => g['filter'],
+            'proxies' => ['♻️ 自动选择', '🚀 节点选择', 'DIRECT']
+         })
+      end
+
       direct_ac_rules = [
          # BattlEye + EAC + Denuvo
          'DOMAIN-SUFFIX,battleye.b-cdn.net,DIRECT', 'DOMAIN-SUFFIX,cdn.battleye.com,DIRECT',
